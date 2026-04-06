@@ -1,8 +1,12 @@
 import { useState, useEffect, useRef} from "react";
-import "./App.css";
-import Header from "./Header";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import "./css/App.css";
+import About from './about';
+import Header from "./components/Header";
+import Login from "./login";
+import Signup from "./signup";
 
-function App() {
+function MainPage() {
   const [ingredients, setIngredients] = useState("");
   const [preferences, setPreferences] = useState("");
   const [recipesData, setRecipesData] = useState(null);
@@ -122,7 +126,6 @@ function App() {
 
   return (
     <>
-      <Header />
 
       <main className="page">
         <section className="hero">
@@ -303,6 +306,20 @@ function App() {
         </section>
       </main>
     </>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Header />
+      <Routes>
+        <Route path="/" element={<MainPage />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/login" element={<Login />} />
+        <Route path='/signup' element={<Signup />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 
