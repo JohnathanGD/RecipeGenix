@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef} from "react";
 import "./App.css";
 import Header from "./Header";
 
@@ -6,10 +6,47 @@ function App() {
   const [ingredients, setIngredients] = useState("");
   const [preferences, setPreferences] = useState("");
   const [recipesData, setRecipesData] = useState(null);
+  const [currentRecipeIndex, setCurrentRecipeIndex] = useState(0);
+  const [showDetails, setShowDetails] = useState(false);
   const [loading, setLoading] = useState(false);
   const [culture, setCulture] = useState("");
   const [recipeCount, setRecipeCount] = useState(10);
   const [areas, setAreas] = useState([]);
+  const fileInputRef = useRef(null);
+
+  const handleClick = () => {
+    fileInputRef.current.click();
+  }
+
+  const handleFileChange = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+  
+    console.log("Selected file:", file);
+  
+    const formData = new FormData();
+    formData.append("file", file);
+  
+    try {
+      const res = await fetch("http://localhost:5050/extract-ingredients", {
+        method: "POST",
+        body: formData,
+      });
+  
+      const data = await res.json();
+  
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to extract ingredients");
+      }
+  
+      if (Array.isArray(data.ingredients)) {
+        setIngredients(data.ingredients.join(", "));
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Failed to process file");
+    }
+  };
 
   async function handleGenerate(e) {
     e.preventDefault();
@@ -42,6 +79,9 @@ function App() {
       }
 
       setRecipesData(data);
+      setCurrentRecipeIndex(0);
+      setShowDetails(false);
+
     } catch (error) {
       console.error(error);
       alert(error.message || "Failed to generate recipe");
@@ -49,6 +89,22 @@ function App() {
       setLoading(false);
     }
   }
+
+  const handleNextRecipe = () => {
+    if (!recipesData?.recipes?.length) return;
+    setCurrentRecipeIndex((prev) =>
+      prev === recipesData.recipes.length - 1 ? 0 : prev + 1
+    );
+    setShowDetails(false);
+  };
+  
+  const handlePrevRecipe = () => {
+    if (!recipesData?.recipes?.length) return;
+    setCurrentRecipeIndex((prev) =>
+      prev === 0 ? recipesData.recipes.length - 1 : prev - 1
+    );
+    setShowDetails(false);
+  };
 
   useEffect(() => {
     async function fetchAreas() {
@@ -92,6 +148,20 @@ function App() {
               Tell the model what ingredients you have and how you want the meal
               to turn out.
             </p>
+
+            <p className="section-text">If you have a grocery list please upload it here. Acceptable files include .pdf and .txt</p>
+
+          <div>
+            <button onClick={handleClick} className="generate-btn">Upload File</button>
+            <input
+            type='file'
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            style={{display: 'none'}} 
+            />
+          </div>
+
+          <p className="section-text">If you don't, please proceed filling out ingredients you would like to use in your reciepes.</p>
 
             <form onSubmit={handleGenerate} className="form">
               <div className="input-group">
@@ -156,38 +226,77 @@ function App() {
                 </p>
               </div>
             ) : (
-              <div className="recipe-list">
-                {recipesData.recipes.map((item, index) => (
-                  <div className="recipe-card-item" key={index}>
-                    <span className="recipe-tag">{item.culture}</span>
-                    <h2>{item.title}</h2>
-                    <p>{item.description}</p>
+              <div className="recipe-carousel">
+                <div className="carousel-header">
+                  <button className="nav-btn" onClick={handlePrevRecipe}>
+                    ←
+                  </button>
 
-                    <div className="recipe-section">
-                      <h3>Ingredients</h3>
-                      <ul>
-                        {item.ingredients.map((ingredient, i) => (
-                          <li key={i}>{ingredient}</li>
-                        ))}
-                      </ul>
-                    </div>
+                  <p className="recipe-counter">
+                    Recipe {currentRecipeIndex + 1} of {recipesData.recipes.length}
+                  </p>
 
-                    <div className="recipe-section">
-                      <h3>Instructions</h3>
-                      <ol>
-                        {item.instructions.map((step, i) => (
-                          <li key={i}>{step}</li>
-                        ))}
-                      </ol>
-                    </div>
+                  <button className="nav-btn" onClick={handleNextRecipe}>
+                    →
+                  </button>
+                </div>
 
-                    <div className="recipe-section">
-                      <p><strong>Prep Time:</strong> {item.prepTime}</p>
-                      <p><strong>Cook Time:</strong> {item.cookTime}</p>
-                      <p><strong>Servings:</strong> {item.servings}</p>
-                    </div>
-                  </div>
-                ))}
+                <div className="recipe-card-item">
+                  <span className="recipe-tag">
+                    {recipesData.recipes[currentRecipeIndex].culture}
+                  </span>
+
+                  <h2>{recipesData.recipes[currentRecipeIndex].title}</h2>
+                  <p>{recipesData.recipes[currentRecipeIndex].description}</p>
+
+                  <button
+                    className="show-more-btn"
+                    onClick={() => setShowDetails((prev) => !prev)}
+                  >
+                    {showDetails ? "Show Less" : "Show More"}
+                  </button>
+
+                  {showDetails && (
+                    <>
+                      <div className="recipe-section">
+                        <h3>Ingredients</h3>
+                        <ul>
+                          {recipesData.recipes[currentRecipeIndex].ingredients.map(
+                            (ingredient, i) => (
+                              <li key={i}>{ingredient}</li>
+                            )
+                          )}
+                        </ul>
+                      </div>
+
+                      <div className="recipe-section">
+                        <h3>Instructions</h3>
+                        <ol>
+                          {recipesData.recipes[currentRecipeIndex].instructions.map(
+                            (step, i) => (
+                              <li key={i}>{step}</li>
+                            )
+                          )}
+                        </ol>
+                      </div>
+
+                      <div className="recipe-section">
+                        <p>
+                          <strong>Prep Time:</strong>{" "}
+                          {recipesData.recipes[currentRecipeIndex].prepTime}
+                        </p>
+                        <p>
+                          <strong>Cook Time:</strong>{" "}
+                          {recipesData.recipes[currentRecipeIndex].cookTime}
+                        </p>
+                        <p>
+                          <strong>Servings:</strong>{" "}
+                          {recipesData.recipes[currentRecipeIndex].servings}
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             )}
           </div>

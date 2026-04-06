@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import multer from "multer";
 import { GoogleGenAI, Type } from "@google/genai";
 
 dotenv.config();
@@ -10,9 +11,22 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const upload = multer({ storage: multer.memoryStorage() });
+
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });
+
+const extractedIngredientsSchema = {
+    type: Type.OBJECT,
+    properties: {
+      ingredients: {
+        type: Type.ARRAY,
+        items: { type: Type.STRING },
+      },
+    },
+    required: ["ingredients"],
+  };
 
 const recipeSchema = {
   type: Type.OBJECT,
@@ -132,6 +146,55 @@ app.post("/generate-recipe", async (req, res) => {
       console.error("Hybrid generation error:", error);
       res.status(500).json({
         error: error?.message || "Failed to generate recipes",
+      });
+    }
+  });
+
+  app.post("/extract-ingredients", upload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded." });
+      }
+  
+      const mimeType = req.file.mimetype;
+      const base64Data = req.file.buffer.toString("base64");
+  
+      const prompt = `
+  Extract grocery or ingredient items from this uploaded file.
+  
+  Rules:
+  - Return only ingredient or grocery item names
+  - Remove duplicates
+  - Keep names concise and normalized
+  - Remove any item on the list that is non-edible
+  - Ignore headers, notes, prices, and non-food text when possible
+  - Return structured JSON only
+  `;
+  
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [
+          {
+            inlineData: {
+              mimeType,
+              data: base64Data,
+            },
+          },
+          { text: prompt },
+        ],
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: extractedIngredientsSchema,
+        },
+      });
+  
+      const parsed = JSON.parse(response.text);
+  
+      res.json(parsed);
+    } catch (error) {
+      console.error("Ingredient extraction error:", error);
+      res.status(500).json({
+        error: error?.message || "Failed to extract ingredients",
       });
     }
   });
