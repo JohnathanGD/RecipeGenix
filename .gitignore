@@ -23,4 +23,4 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-./server/recipe_app.db
+server/recipe_app.db
