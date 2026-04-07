@@ -15,6 +15,21 @@ a {
   color: inherit;
 }
 
+.homeimg {
+  border-radius: 24px;
+  padding: 0.5rem;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  height: 500px;
+  width:100%;
+  border: 1px solid #e5e7eb;
+}
+
+.icon {
+  color: #e5e7eb;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
 .page {
   max-width: 1200px;
   margin: 0 auto;
@@ -97,7 +112,7 @@ a {
 .hero h1 {
   font-size: 3rem;
   line-height: 1.1;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
 }
 
 .hero p {
@@ -124,6 +139,7 @@ a {
   padding: 1.75rem;
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
   border: 1px solid #e5e7eb;
+  margin-bottom: 0.5rem;
 }
 
 .card h2 {
