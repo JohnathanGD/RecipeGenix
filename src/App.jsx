@@ -5,6 +5,8 @@ import About from './about';
 import Header from "./components/Header";
 import Login from "./login";
 import Signup from "./signup";
+import Dashboard from "./dashboard";
+import Hero from "./assets/testphoto.jpg";
 
 function MainPage() {
   const [ingredients, setIngredients] = useState("");
@@ -14,9 +16,10 @@ function MainPage() {
   const [showDetails, setShowDetails] = useState(false);
   const [loading, setLoading] = useState(false);
   const [culture, setCulture] = useState("");
-  const [recipeCount, setRecipeCount] = useState(10);
+  const [recipeCount, setRecipeCount] = useState(3);
   const [areas, setAreas] = useState([]);
   const fileInputRef = useRef(null);
+  const [count, setCount] = useState(0);
 
   const handleClick = () => {
     fileInputRef.current.click();
@@ -57,6 +60,13 @@ function MainPage() {
 
     if (!ingredients.trim()) {
       alert("Please enter some ingredients first.");
+      return;
+    }
+
+    const newCount = count + 1;
+    setCount(newCount);
+    if (newCount == 2) {
+      alert("Please create an account or login to gain full access!")
       return;
     }
 
@@ -128,6 +138,10 @@ function MainPage() {
     <>
 
       <main className="page">
+        <h1>Welcome to RecipeGenix!</h1>
+        <section className="hero">
+          <img src={Hero} alt="Hero" className="homeimg" />
+        </section>
         <section className="hero">
           <div className="hero-text">
             <span className="badge">AI-Powered Meal Creation</span>
@@ -141,6 +155,7 @@ function MainPage() {
               Enter a grocery list, a few ingredients, a cuisine, or a goal like
               high protein or low carb to get started.
             </p>
+            <h2>Try it out Now!</h2>
           </div>
         </section>
 
@@ -207,7 +222,7 @@ function MainPage() {
                 <input
                   type="number"
                   min="1"
-                  max="10"
+                  max="3"
                   value={recipeCount}
                   onChange={(e) => setRecipeCount(Number(e.target.value))}
                 />
@@ -315,6 +330,7 @@ function App() {
       <Header />
       <Routes>
         <Route path="/" element={<MainPage />} />
+        <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/about" element={<About />} />
         <Route path="/login" element={<Login />} />
         <Route path='/signup' element={<Signup />} />
