@@ -7,6 +7,7 @@ import Login from "./login";
 import Signup from "./signup";
 import Dashboard from "./dashboard";
 import SavedRecipeDetail from "./SavedRecipeDetail";
+import GroceryListDetail from "./GroceryListDetail";
 import Hero from "./assets/testphoto.jpg";
 
 function MainPage() {
@@ -335,6 +336,10 @@ function App() {
         <Route
           path="/dashboard/saved-recipe/:id"
           element={<SavedRecipeDetail />}
+        />
+        <Route
+          path="/dashboard/grocery-list/:id"
+          element={<GroceryListDetail />}
         />
         <Route path="/about" element={<About />} />
         <Route path="/login" element={<Login />} />

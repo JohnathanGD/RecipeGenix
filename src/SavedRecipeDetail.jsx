@@ -36,7 +36,15 @@ export default function SavedRecipeDetail() {
             Authorization: `Bearer ${token}`,
           },
         });
-        const data = await res.json();
+        const raw = await res.text();
+        let data = {};
+        try {
+          data = raw ? JSON.parse(raw) : {};
+        } catch {
+          throw new Error(
+            "The server returned HTML instead of JSON. Restart the backend server and try again."
+          );
+        }
         if (cancelled) return;
         if (!res.ok) {
           throw new Error(data.error || "Could not load recipe.");

@@ -1,7 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import "./css/App.css";
-import Hero from "./assets/testphoto.jpg";
+
+function parseGroceryListItems(text) {
+  if (!text || !String(text).trim()) return [];
+  return text
+    .split(/\r?\n/)
+    .flatMap((line) => line.split(","))
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
 export default function Dashboard() {
   const [ingredients, setIngredients] = useState("");
@@ -14,8 +22,11 @@ export default function Dashboard() {
   const [recipeCount, setRecipeCount] = useState(10);
   const [areas, setAreas] = useState([]);
   const fileInputRef = useRef(null);
+  const groceryFileInputRef = useRef(null);
   const [groceryLists, setGroceryLists] = useState([]);
   const [newListName, setNewListName] = useState("");
+  const [groceryListText, setGroceryListText] = useState("");
+  const [groceryUploadLoading, setGroceryUploadLoading] = useState(false);
   const token = localStorage.getItem("token");
   const [savedRecipes, setSavedRecipes] = useState([]);
   const user = JSON.parse(localStorage.getItem("user") || "null");
@@ -63,8 +74,56 @@ export default function Dashboard() {
     }
   };
 
+  const handleGroceryUploadClick = () => {
+    groceryFileInputRef.current?.click();
+  };
+
+  const handleGroceryFileChange = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    setGroceryUploadLoading(true);
+    try {
+      const res = await fetch("http://localhost:5050/extract-ingredients", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to read list from file");
+      }
+
+      if (Array.isArray(data.ingredients) && data.ingredients.length) {
+        setGroceryListText(data.ingredients.join("\n"));
+      } else {
+        alert("No items could be extracted from that file.");
+      }
+    } catch (error) {
+      console.error(error);
+      alert(error.message || "Failed to process file");
+    } finally {
+      setGroceryUploadLoading(false);
+      event.target.value = "";
+    }
+  };
+
   const handleAddList = async () => {
-    if (!newListName.trim()) return;
+    const items = parseGroceryListItems(groceryListText);
+    if (!newListName.trim()) {
+      alert("Please enter a name for your grocery list.");
+      return;
+    }
+    if (items.length === 0) {
+      alert(
+        "Add at least one item: type them in the box below, or upload a PDF or .txt file."
+      );
+      return;
+    }
 
     const token = localStorage.getItem("token");
     if (!token) {
@@ -81,10 +140,7 @@ export default function Dashboard() {
         },
         body: JSON.stringify({
           name: newListName,
-          items: ingredients
-            .split(",")
-            .map((item) => item.trim())
-            .filter(Boolean),
+          items,
         }),
       });
 
@@ -106,6 +162,7 @@ export default function Dashboard() {
       }
 
       setNewListName("");
+      setGroceryListText("");
     } catch (error) {
       console.error(error);
       alert(error.message);
@@ -292,8 +349,8 @@ export default function Dashboard() {
                 <h2>Grocery lists</h2>
                 <button className="add-btn" onClick={handleAddList}>+</button>
                 <p className="section-text">
-                Here are the grocery lists you have saved so far. To add another one, either upload a file in the recipe input section
-                or click the '+' icon above.
+                Create a list by typing items below or uploading a PDF or .txt file to
+                have it analyzed and turned into items. Then name the list and click + to save.
                 </p>
 
                 <div className="add-list">
@@ -303,6 +360,33 @@ export default function Dashboard() {
                     value={newListName}
                     onChange={(e) => setNewListName(e.target.value)}
                 />
+                <label className="input-group grocery-list-label">
+                  <span>List items</span>
+                  <textarea
+                    className="grocery-list-textarea"
+                    placeholder="One item per line, or comma-separated (e.g. milk, eggs, bread)"
+                    value={groceryListText}
+                    onChange={(e) => setGroceryListText(e.target.value)}
+                    rows={5}
+                  />
+                </label>
+                <div className="grocery-upload-row">
+                  <button
+                    type="button"
+                    className="generate-btn grocery-upload-btn"
+                    onClick={handleGroceryUploadClick}
+                    disabled={groceryUploadLoading}
+                  >
+                    {groceryUploadLoading ? "Analyzing file…" : "Upload PDF or .txt"}
+                  </button>
+                  <input
+                    ref={groceryFileInputRef}
+                    type="file"
+                    accept=".pdf,.txt,application/pdf,text/plain"
+                    onChange={handleGroceryFileChange}
+                    style={{ display: "none" }}
+                  />
+                </div>
                 </div>
 
                 <div className="list-container">
@@ -310,13 +394,14 @@ export default function Dashboard() {
                     <p className="empty-text">No grocery lists yet.</p>
                 ) : (
                     groceryLists.map((list) => (
-                    <div
+                    <Link
                         key={list.id}
-                        className="list-item"
-                        onClick={() => console.log(list)}
+                        to={`/dashboard/grocery-list/${list.id}`}
+                        className="list-item list-item--clickable"
                     >
                         {list.name}
-                    </div>
+                        <p className="list-item__hint">View full list →</p>
+                    </Link>
                     ))
                 )}
                 </div>

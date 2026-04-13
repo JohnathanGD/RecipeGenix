@@ -394,6 +394,25 @@ select:focus {
   border: 1px solid #ccc;
 }
 
+.grocery-list-label {
+  margin-top: 0.75rem;
+}
+
+.grocery-list-textarea {
+  margin-top: 0;
+  min-height: 120px;
+  resize: vertical;
+}
+
+.grocery-upload-row {
+  margin-top: 0.75rem;
+}
+
+.grocery-upload-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 .list-container {
   display: flex;
   flex-direction: column;
@@ -447,6 +466,12 @@ select:focus {
 .saved-recipe-detail__card h2 {
   font-size: 1.15rem;
   margin-bottom: 0.5rem;
+}
+
+.grocery-list-items {
+  margin-top: 0.5rem;
+  padding-left: 1.25rem;
+  line-height: 1.7;
 }
 
 .empty-text {
