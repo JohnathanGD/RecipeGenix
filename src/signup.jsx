@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 export default function Signup() {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -81,23 +83,7 @@ export default function Signup() {
       }
 
       setSuccess("Account created successfully");
-
-      setFormData({
-        firstName: "",
-        lastName: "",
-        dob: "",
-        email: "",
-        password: "",
-        confirmPassword: "",
-        dietaryStyle: "",
-        allergies: "",
-        dislikes: "",
-        favoriteCuisines: "",
-        cookingGoal: "",
-        maxCookTime: "",
-        spiceLevel: "",
-        householdSize: 1,
-      });
+      navigate("/dashboard", { replace: true });
     } catch (err) {
       setError(err.message || "Something went wrong");
     } finally {

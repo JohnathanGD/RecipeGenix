@@ -90,6 +90,177 @@ a {
   color: #86efac;
 }
 
+.nav-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 500;
+  color: #e5e7eb;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.nav-link-btn:hover {
+  color: #86efac;
+}
+
+.header-account-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.account-section-title {
+  margin-top: 0.5rem;
+  margin-bottom: 0;
+  font-size: 1.15rem;
+}
+
+.account-message {
+  margin: 0;
+  font-weight: 600;
+}
+
+.account-message--error {
+  color: #b91c1c;
+}
+
+.account-message--success {
+  color: #166534;
+}
+
+.account-form {
+  max-width: 520px;
+}
+
+.profile-card {
+  background: white;
+  border-radius: 20px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  overflow: hidden;
+  margin-bottom: 1.5rem;
+  max-width: 560px;
+}
+
+.profile-card__heading {
+  font-size: 1.1rem;
+  margin: 0;
+  padding: 1rem 1.25rem;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  color: #111827;
+}
+
+.profile-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 34%) 1fr auto;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  width: 100%;
+  padding: 1rem 1.25rem;
+  text-align: left;
+  border: none;
+  border-bottom: 1px solid #f3f4f6;
+  background: white;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.profile-row:last-child {
+  border-bottom: none;
+}
+
+.profile-row:hover {
+  background: #fafafa;
+}
+
+.profile-row__label {
+  font-weight: 600;
+  color: #374151;
+  font-size: 0.9rem;
+}
+
+.profile-row__value {
+  color: #111827;
+  text-align: right;
+  word-break: break-word;
+}
+
+.profile-row__chev {
+  color: #9ca3af;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.profile-row--editing {
+  display: block;
+  cursor: default;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #f3f4f6;
+  background: #fafafa;
+}
+
+.profile-row--editing:hover {
+  background: #fafafa;
+}
+
+.profile-row--editing .profile-row__label {
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.profile-row__input {
+  width: 100%;
+  margin-bottom: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid #d1d5db;
+  font-size: 1rem;
+  background: white;
+}
+
+.profile-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.profile-row__btn {
+  padding: 0.45rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  background: white;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  color: #374151;
+}
+
+.profile-row__btn:hover:not(:disabled) {
+  background: #f3f4f6;
+}
+
+.profile-row__btn--primary {
+  background: #166534;
+  border-color: #166534;
+  color: white;
+}
+
+.profile-row__btn--primary:hover:not(:disabled) {
+  background: #14532d;
+}
+
+.profile-row__btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .hero {
   padding: 3rem 0 2rem;
 }
@@ -406,6 +577,19 @@ select:focus {
 
 .grocery-upload-row {
   margin-top: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.grocery-upload-row .grocery-upload-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.grocery-upload-row .add-btn {
+  flex: 0 0 auto;
 }
 
 .grocery-upload-btn:disabled {

@@ -347,7 +347,6 @@ export default function Dashboard() {
             <section className="app-grid">
             <div className="card">
                 <h2>Grocery lists</h2>
-                <button className="add-btn" onClick={handleAddList}>+</button>
                 <p className="section-text">
                 Create a list by typing items below or uploading a PDF or .txt file to
                 have it analyzed and turned into items. Then name the list and click + to save.
@@ -386,6 +385,15 @@ export default function Dashboard() {
                     onChange={handleGroceryFileChange}
                     style={{ display: "none" }}
                   />
+                  <button
+                    type="button"
+                    className="add-btn"
+                    onClick={handleAddList}
+                    title="Save grocery list"
+                    aria-label="Save grocery list"
+                  >
+                    Save List
+                  </button>
                 </div>
                 </div>
 

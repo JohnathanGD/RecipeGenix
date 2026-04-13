@@ -1,6 +1,9 @@
 import { useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
 export default function Login() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -42,7 +45,8 @@ export default function Login() {
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
 
-      window.location.href = "/dashboard";
+      const from = location.state?.from?.pathname || "/dashboard";
+      navigate(from, { replace: true });
     } catch (err) {
       setError(err.message || "Something went wrong");
     } finally {

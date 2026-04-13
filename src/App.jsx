@@ -8,6 +8,8 @@ import Signup from "./signup";
 import Dashboard from "./dashboard";
 import SavedRecipeDetail from "./SavedRecipeDetail";
 import GroceryListDetail from "./GroceryListDetail";
+import Account from "./Account";
+import ProtectedRoute from "./components/ProtectedRoute";
 import Hero from "./assets/testphoto.jpg";
 
 function MainPage() {
@@ -332,18 +334,41 @@ function App() {
       <Header />
       <Routes>
         <Route path="/" element={<MainPage />} />
-        <Route path="/dashboard" element={<Dashboard />} />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/dashboard/saved-recipe/:id"
-          element={<SavedRecipeDetail />}
+          element={
+            <ProtectedRoute>
+              <SavedRecipeDetail />
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/dashboard/grocery-list/:id"
-          element={<GroceryListDetail />}
+          element={
+            <ProtectedRoute>
+              <GroceryListDetail />
+            </ProtectedRoute>
+          }
         />
         <Route path="/about" element={<About />} />
         <Route path="/login" element={<Login />} />
         <Route path='/signup' element={<Signup />} />
+        <Route
+          path="/account"
+          element={
+            <ProtectedRoute>
+              <Account />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );
