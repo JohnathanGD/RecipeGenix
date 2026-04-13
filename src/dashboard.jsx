@@ -19,6 +19,7 @@ export default function Dashboard() {
     const [savedRecipes, setSavedRecipes] = useState([]);
     const user = JSON.parse(localStorage.getItem("user") || "null");
     const username = user?.firstName;
+    const currentRecipe = recipesData?.recipes?.[currentRecipeIndex];
   
     const handleClick = () => {
       fileInputRef.current.click();
@@ -27,8 +28,6 @@ export default function Dashboard() {
     const handleFileChange = async (event) => {
       const file = event.target.files[0];
       if (!file) return;
-    
-      console.log("Selected file:", file);
     
       const formData = new FormData();
       formData.append("file", file);
@@ -159,20 +158,25 @@ export default function Dashboard() {
       setLoading(true);
   
       try {
+        const token = localStorage.getItem("token");
+
         const res = await fetch("http://localhost:5050/generate-recipe", {
-          method: "POST",
-          headers: {
+        method: "POST",
+        headers: {
             "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
             ingredients,
             preferences,
             culture,
             recipeCount,
-          }),
+        }),
         });
   
         const data = await res.json();
+
+        console.log("Generated recipe response:", data);
   
         if (!res.ok) {
           throw new Error(data.error || "Something went wrong");
@@ -398,93 +402,123 @@ export default function Dashboard() {
             </div>
   
             <div className="card recipe-card">
-              {!recipesData?.recipes ? (
-                <div className="empty-state">
-                  <h2>Your recipes will appear here</h2>
-                  <p>
-                    Once you generate recipes, they will show up here in a cleaner
-                    format.
-                  </p>
-                </div>
-              ) : (
-                <div className="recipe-carousel">
-                  <div className="carousel-header">
-                    <button className="nav-btn" onClick={handlePrevRecipe}>
-                      ←
-                    </button>
-  
-                    <p className="recipe-counter">
-                      Recipe {currentRecipeIndex + 1} of {recipesData.recipes.length}
+                {!recipesData?.recipes ? (
+                    <div className="empty-state">
+                    <h2>Your recipes will appear here</h2>
+                    <p>
+                        Once you generate recipes, they will show up here in a cleaner
+                        format.
                     </p>
-  
-                    <button className="nav-btn" onClick={handleNextRecipe}>
-                      →
-                    </button>
-                  </div>
-  
-                  <div className="recipe-card-item">
-                    <span className="recipe-tag">
-                      {recipesData.recipes[currentRecipeIndex].culture}
-                    </span>
-  
-                    <h2>{recipesData.recipes[currentRecipeIndex].title}</h2>
-                    <p>{recipesData.recipes[currentRecipeIndex].description}</p>
-  
-                    <div className="recipe-section">
-                          <p>
+                    </div>
+                ) : (
+                    <div className="recipe-carousel">
+                    <div className="carousel-header">
+                        <button className="nav-btn" onClick={handlePrevRecipe}>
+                        ←
+                        </button>
+
+                        <p className="recipe-counter">
+                        Recipe {currentRecipeIndex + 1} of {recipesData.recipes.length}
+                        </p>
+
+                        <button className="nav-btn" onClick={handleNextRecipe}>
+                        →
+                        </button>
+                    </div>
+
+                    <div className="recipe-card-item">
+                        <span className="recipe-tag">{currentRecipe.culture}</span>
+
+                        <h2>{currentRecipe.title}</h2>
+                        <p>{currentRecipe.description}</p>
+
+                        {currentRecipe?.evaluation && (
+                        <p className="score-badge">
+                            Agent Score: {currentRecipe.evaluation.overallScore}/10
+                        </p>
+                        )}
+
+                        <div className="recipe-section">
+                        <p>
                             <strong>Prep Time:</strong>{" "}
-                            {recipesData.recipes[currentRecipeIndex].prepTime}
-                          </p>
-                          <p>
+                            {currentRecipe.prepTime}
+                        </p>
+                        <p>
                             <strong>Cook Time:</strong>{" "}
-                            {recipesData.recipes[currentRecipeIndex].cookTime}
-                          </p>
-                          <p>
+                            {currentRecipe.cookTime}
+                        </p>
+                        <p>
                             <strong>Servings:</strong>{" "}
-                            {recipesData.recipes[currentRecipeIndex].servings}
-                          </p>
-                     </div>
-  
-                    <button
-                      className="show-more-btn"
-                      onClick={() => setShowDetails((prev) => !prev)}
-                    >
-                      {showDetails ? "Show Less" : "Show More"}
-                    </button>
-  
-                    {showDetails && (
-                      <>
-                        <div className="recipe-section">
-                          <h3>Ingredients</h3>
-                          <ul>
-                            {recipesData.recipes[currentRecipeIndex].ingredients.map(
-                              (ingredient, i) => (
-                                <li key={i}>{ingredient}</li>
-                              )
-                            )}
-                          </ul>
-                        </div>
-  
-                        <div className="recipe-section">
-                          <h3>Instructions</h3>
-                          <ol>
-                            {recipesData.recipes[currentRecipeIndex].instructions.map(
-                              (step, i) => (
-                                <li key={i}>{step}</li>
-                              )
-                            )}
-                          </ol>
+                            {currentRecipe.servings}
+                        </p>
                         </div>
 
-                        <button className="generate-btn" onClick={handleSaveRecipe}>
-                        Save Recipe
+                        <button
+                        className="show-more-btn"
+                        onClick={() => setShowDetails((prev) => !prev)}
+                        >
+                        {showDetails ? "Show Less" : "Show More"}
                         </button>
-                      </>
-                    )}
-                  </div>
+
+                        {showDetails && (
+                        <>
+                            {currentRecipe?.evaluation && (
+                            <div className="recipe-section">
+                                <h3>Agent Evaluation</h3>
+                                <p>
+                                <strong>Dietary Fit:</strong>{" "}
+                                {currentRecipe.evaluation.dietaryFit}
+                                </p>
+                                <p>
+                                <strong>Allergy Safety:</strong>{" "}
+                                {currentRecipe.evaluation.allergySafety}
+                                </p>
+                                <p>
+                                <strong>Ingredient Fit:</strong>{" "}
+                                {currentRecipe.evaluation.ingredientFit}
+                                </p>
+                                <p>
+                                <strong>Preference Fit:</strong>{" "}
+                                {currentRecipe.evaluation.preferenceFit}
+                                </p>
+                                <p>
+                                <strong>Practicality:</strong>{" "}
+                                {currentRecipe.evaluation.practicality}
+                                </p>
+                                <p>
+                                <strong>Revision Notes:</strong>{" "}
+                                {currentRecipe.evaluation.revisionNotes}
+                                </p>
+                            </div>
+                            )}
+
+                            <div className="recipe-section">
+                            <h3>Ingredients</h3>
+                            <ul>
+                                {currentRecipe.ingredients.map((ingredient, i) => (
+                                <li key={i}>{ingredient}</li>
+                                ))}
+                            </ul>
+                            </div>
+
+                            <div className="recipe-section">
+                            <h3>Instructions</h3>
+                            <ol>
+                                {currentRecipe.instructions.map((step, i) => (
+                                <li key={i}>{step}</li>
+                                ))}
+                            </ol>
+                            </div>
+
+                            <button className="generate-btn" onClick={handleSaveRecipe}>
+                            Save Recipe
+                            </button>
+                        </>
+                        )}
+                    </div>
+                    </div>
+                )}
                 </div>
-              )}
-            </div>
           </section>
         </main>
       </>

@@ -10,14 +10,22 @@ const db = new sqlite3.Database("./recipe_app.db", (err) => {
 
 db.serialize(() => {
   db.run(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      first_name TEXT NOT NULL,
-      last_name TEXT NOT NULL,
-      dob TEXT NOT NULL,
-      email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL
-    )
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    first_name TEXT NOT NULL,
+    last_name TEXT NOT NULL,
+    dob TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    password TEXT NOT NULL,
+    dietary_style TEXT,
+    allergies TEXT,
+    dislikes TEXT,
+    favorite_cuisines TEXT,
+    cooking_goal TEXT,
+    max_cook_time TEXT,
+    spice_level TEXT,
+    household_size INTEGER DEFAULT 1
+  );
   `);
 
   db.run(`

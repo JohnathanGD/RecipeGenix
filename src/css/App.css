@@ -409,3 +409,14 @@ select:focus {
 .empty-text {
   color: #888;
 }
+
+.score-badge {
+  display: inline-block;
+  margin-top: 10px;
+  margin-bottom: 10px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-weight: 700;
+  background: #e8f0fe;
+  color: #1a73e8;
+}
