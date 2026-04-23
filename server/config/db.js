@@ -48,10 +48,29 @@ db.run(`
     preference_fit TEXT,
     practicality TEXT,
     revision_notes TEXT,
+    user_feedback_rating TEXT,
+    user_feedback_notes TEXT,
 
     FOREIGN KEY(user_id) REFERENCES users(id)
   )
 `);
+
+  db.run(
+    `ALTER TABLE saved_recipes ADD COLUMN user_feedback_rating TEXT`,
+    (err) => {
+      if (err && !String(err.message).includes("duplicate column")) {
+        console.error("Migration user_feedback_rating:", err.message);
+      }
+    }
+  );
+  db.run(
+    `ALTER TABLE saved_recipes ADD COLUMN user_feedback_notes TEXT`,
+    (err) => {
+      if (err && !String(err.message).includes("duplicate column")) {
+        console.error("Migration user_feedback_notes:", err.message);
+      }
+    }
+  );
 
   db.run(`
     CREATE TABLE IF NOT EXISTS grocery_lists (

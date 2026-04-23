@@ -47,4 +47,30 @@ router.get("/grocery-lists", authenticateToken, (req, res) => {
   );
 });
 
+router.get("/grocery-lists/:id", authenticateToken, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) {
+    return res.status(400).json({ error: "Invalid list id." });
+  }
+
+  db.get(
+    `SELECT * FROM grocery_lists WHERE id = ? AND user_id = ?`,
+    [id, req.user.id],
+    (err, list) => {
+      if (err) {
+        return res.status(500).json({ error: "Failed to fetch grocery list." });
+      }
+
+      if (!list) {
+        return res.status(404).json({ error: "Grocery list not found." });
+      }
+
+      res.json({
+        ...list,
+        items: JSON.parse(list.items || "[]"),
+      });
+    }
+  );
+});
+
 export default router;
