@@ -18,12 +18,22 @@ export default function Dashboard() {
   const [currentRecipeIndex, setCurrentRecipeIndex] = useState(0);
   const [showDetails, setShowDetails] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [clarifyLoading, setClarifyLoading] = useState(false);
+  const [clarificationQuestions, setClarificationQuestions] = useState([]);
+  const [clarificationAnswers, setClarificationAnswers] = useState([]);
+  const [reviseLoading, setReviseLoading] = useState(false);
+  const [revisionRequest, setRevisionRequest] = useState("");
+  const [autoReviseLowScore, setAutoReviseLowScore] = useState(true);
+  const [agentTrace, setAgentTrace] = useState(null);
+  const [showAgentTrace, setShowAgentTrace] = useState(false);
+  const [pendingRevision, setPendingRevision] = useState(null);
+  const [revisionTrace, setRevisionTrace] = useState(null);
   const [culture, setCulture] = useState("");
   const [recipeCount, setRecipeCount] = useState(10);
   const [areas, setAreas] = useState([]);
-  const fileInputRef = useRef(null);
   const groceryFileInputRef = useRef(null);
   const [groceryLists, setGroceryLists] = useState([]);
+  const [selectedRecipeListId, setSelectedRecipeListId] = useState("");
   const [newListName, setNewListName] = useState("");
   const [groceryListText, setGroceryListText] = useState("");
   const [groceryUploadLoading, setGroceryUploadLoading] = useState(false);
@@ -32,10 +42,6 @@ export default function Dashboard() {
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const username = user?.firstName;
   const currentRecipe = recipesData?.recipes?.[currentRecipeIndex];
-
-  const handleClick = () => {
-    fileInputRef.current.click();
-  };
 
   const getScoreClass = (overallScore) => {
     const numericScore = Number(overallScore);
@@ -46,32 +52,12 @@ export default function Dashboard() {
     return "score-badge--low";
   };
 
-  const handleFileChange = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-      const res = await fetch("http://localhost:5050/extract-ingredients", {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to extract ingredients");
-      }
-
-      if (Array.isArray(data.ingredients)) {
-        setIngredients(data.ingredients.join(", "));
-      }
-    } catch (error) {
-      console.error(error);
-      alert("Failed to process file");
-    }
+  const handleUseSavedListForRecipe = (listId) => {
+    setSelectedRecipeListId(listId);
+    const list = groceryLists.find((g) => String(g.id) === String(listId));
+    if (!list) return;
+    const listItems = Array.isArray(list.items) ? list.items : [];
+    setIngredients(listItems.join(", "));
   };
 
   const handleGroceryUploadClick = () => {
@@ -225,6 +211,62 @@ export default function Dashboard() {
     }
   };
 
+  const handleClarificationAnswerChange = (idx, value) => {
+    setClarificationAnswers((prev) => {
+      const next = [...prev];
+      next[idx] = value;
+      return next;
+    });
+  };
+
+  const handleGetClarifications = async () => {
+    if (!ingredients.trim()) {
+      alert("Enter ingredients first so the agent can ask better questions.");
+      return;
+    }
+
+    setClarifyLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("http://localhost:5050/clarify-recipe-request", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          ingredients,
+          preferences,
+          culture,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to fetch clarification questions.");
+      }
+      const questions = Array.isArray(data.questions) ? data.questions : [];
+      setClarificationQuestions(questions);
+      setClarificationAnswers(new Array(questions.length).fill(""));
+    } catch (error) {
+      console.error(error);
+      alert(error.message || "Failed to fetch clarification questions.");
+    } finally {
+      setClarifyLoading(false);
+    }
+  };
+
+  const buildClarificationContext = () => {
+    if (!clarificationQuestions.length) return "";
+    return clarificationQuestions
+      .map((question, idx) => {
+        const answer = clarificationAnswers[idx]?.trim();
+        return answer ? `Q: ${question}\nA: ${answer}` : null;
+      })
+      .filter(Boolean)
+      .join("\n\n");
+  };
+
   async function handleGenerate(e) {
     e.preventDefault();
 
@@ -249,6 +291,8 @@ export default function Dashboard() {
           preferences,
           culture,
           recipeCount,
+          clarificationContext: buildClarificationContext(),
+          autoReviseLowScore,
         }),
       });
 
@@ -261,8 +305,13 @@ export default function Dashboard() {
       }
 
       setRecipesData(data);
+      setAgentTrace(data.agentTrace || null);
       setCurrentRecipeIndex(0);
       setShowDetails(false);
+      setRevisionRequest("");
+      setShowAgentTrace(false);
+      setPendingRevision(null);
+      setRevisionTrace(null);
     } catch (error) {
       console.error(error);
       alert(error.message || "Failed to generate recipe");
@@ -285,6 +334,64 @@ export default function Dashboard() {
       prev === 0 ? recipesData.recipes.length - 1 : prev - 1
     );
     setShowDetails(false);
+  };
+
+  const handleReviseCurrentRecipe = async (requestText) => {
+    const activeRequest = requestText || revisionRequest;
+    if (!activeRequest?.trim()) {
+      alert("Enter a revision request first.");
+      return;
+    }
+    if (!currentRecipe) return;
+
+    setReviseLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("http://localhost:5050/revise-recipe", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          recipe: currentRecipe,
+          revisionRequest: activeRequest,
+          ingredients,
+          preferences,
+          culture,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to revise recipe.");
+      }
+
+      setPendingRevision(data.recipe || null);
+      setRevisionTrace(data.trace || null);
+      setShowDetails(true);
+    } catch (error) {
+      console.error(error);
+      alert(error.message || "Failed to revise recipe.");
+    } finally {
+      setReviseLoading(false);
+    }
+  };
+
+  const handleApplyPendingRevision = () => {
+    if (!pendingRevision) return;
+    setRecipesData((prev) => {
+      if (!prev?.recipes?.length) return prev;
+      const nextRecipes = [...prev.recipes];
+      nextRecipes[currentRecipeIndex] = pendingRevision;
+      return { ...prev, recipes: nextRecipes };
+    });
+    setPendingRevision(null);
+    setRevisionRequest("");
+  };
+
+  const handleRejectPendingRevision = () => {
+    setPendingRevision(null);
   };
 
   useEffect(() => {
@@ -387,7 +494,7 @@ export default function Dashboard() {
                   />
                   <button
                     type="button"
-                    className="add-btn"
+                    className="generate-btn save-list-btn"
                     onClick={handleAddList}
                     title="Save grocery list"
                     aria-label="Save grocery list"
@@ -468,17 +575,22 @@ export default function Dashboard() {
                 </p>
 
                 <p className="section-text">
-                If you have a grocery list please upload it here. Acceptable files include .pdf and .txt
+                Pull ingredients directly from one of your saved grocery lists.
                 </p>
 
-                <div>
-                <button onClick={handleClick} className="generate-btn">Upload File</button>
-                <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    style={{ display: "none" }}
-                />
+                <div className="input-group">
+                  <label>Use a saved grocery list</label>
+                  <select
+                    value={selectedRecipeListId}
+                    onChange={(e) => handleUseSavedListForRecipe(e.target.value)}
+                  >
+                    <option value="">Select a saved grocery list</option>
+                    {groceryLists.map((list) => (
+                      <option key={list.id} value={list.id}>
+                        {list.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <p className="section-text">
@@ -507,6 +619,36 @@ export default function Dashboard() {
                 </div>
 
                 <div className="input-group">
+                    <button
+                      type="button"
+                      className="show-more-btn"
+                      onClick={handleGetClarifications}
+                      disabled={clarifyLoading}
+                    >
+                      {clarifyLoading ? "Agent is asking..." : "Ask agent clarifying questions"}
+                    </button>
+                </div>
+
+                {clarificationQuestions.length > 0 && (
+                  <div className="recipe-section">
+                    <h3>Agent clarification step</h3>
+                    {clarificationQuestions.map((q, idx) => (
+                      <div className="input-group" key={`${q}-${idx}`}>
+                        <label>{q}</label>
+                        <input
+                          type="text"
+                          value={clarificationAnswers[idx] || ""}
+                          onChange={(e) =>
+                            handleClarificationAnswerChange(idx, e.target.value)
+                          }
+                          placeholder="Your answer (optional)"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="input-group">
                     <label>Culture / Cuisine</label>
                     <select
                     value={culture}
@@ -531,6 +673,15 @@ export default function Dashboard() {
                     onChange={(e) => setRecipeCount(Number(e.target.value))}
                     />
                 </div>
+
+                <label className="agent-toggle">
+                  <input
+                    type="checkbox"
+                    checked={autoReviseLowScore}
+                    onChange={(e) => setAutoReviseLowScore(e.target.checked)}
+                  />
+                  Auto-revise recipes with score below 7
+                </label>
 
                 <button type="submit" className="generate-btn">
                     {loading ? "Generating..." : "Generate Recipes"}
@@ -562,6 +713,58 @@ export default function Dashboard() {
                         →
                     </button>
                     </div>
+                    {agentTrace && (
+                      <div className="agent-trace-toggle-wrap">
+                        <button
+                          type="button"
+                          className="show-more-btn agent-trace-toggle"
+                          onClick={() => setShowAgentTrace((prev) => !prev)}
+                        >
+                          {showAgentTrace ? "Hide Agent Trace" : "Show Agent Trace"}
+                        </button>
+                      </div>
+                    )}
+
+                    {agentTrace && showAgentTrace && (
+                      <div className="recipe-section agent-trace">
+                        <h3>Agent Trace</h3>
+                        {agentTrace.planner?.goal && (
+                          <p>
+                            <strong>Goal:</strong> {agentTrace.planner.goal}
+                          </p>
+                        )}
+                        {Array.isArray(agentTrace.planner?.keyConstraints) &&
+                          agentTrace.planner.keyConstraints.length > 0 && (
+                            <p>
+                              <strong>Constraints:</strong>{" "}
+                              {agentTrace.planner.keyConstraints.join(", ")}
+                            </p>
+                          )}
+                        {Array.isArray(agentTrace.planner?.steps) &&
+                          agentTrace.planner.steps.length > 0 && (
+                            <>
+                              <p>
+                                <strong>Plan Steps:</strong>
+                              </p>
+                              <ol className="agent-trace-list">
+                                {agentTrace.planner.steps.map((step, idx) => (
+                                  <li key={`${step}-${idx}`}>{step}</li>
+                                ))}
+                              </ol>
+                            </>
+                          )}
+                        {agentTrace.criticSummary && (
+                          <p>
+                            <strong>Critic:</strong> average score{" "}
+                            {agentTrace.criticSummary.averageScore ?? "n/a"}; low
+                            score recipes {agentTrace.criticSummary.lowScoreCount};{" "}
+                            auto-revise {agentTrace.criticSummary.autoRevisedLowScores
+                              ? "ON"
+                              : "OFF"}
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     <div className="recipe-card-item">
                     <span className="recipe-tag">{currentRecipe.culture}</span>
@@ -577,6 +780,26 @@ export default function Dashboard() {
                         >
                         Agent Score: {currentRecipe.evaluation.overallScore}/10
                         </p>
+                    )}
+
+                    {currentRecipe?.whyRecommended && (
+                      <div className="recipe-section why-section">
+                        <h3>Why the agent recommends this</h3>
+                        <p>{currentRecipe.whyRecommended}</p>
+                        {Array.isArray(currentRecipe?.tradeoffs) &&
+                          currentRecipe.tradeoffs.length > 0 && (
+                            <>
+                              <p>
+                                <strong>Tradeoffs</strong>
+                              </p>
+                              <ul>
+                                {currentRecipe.tradeoffs.map((tradeoff, idx) => (
+                                  <li key={`${tradeoff}-${idx}`}>{tradeoff}</li>
+                                ))}
+                              </ul>
+                            </>
+                          )}
+                      </div>
                     )}
 
                     <div className="recipe-section">
@@ -649,6 +872,89 @@ export default function Dashboard() {
                                 <li key={i}>{step}</li>
                             ))}
                             </ol>
+                        </div>
+
+                        <div className="recipe-section">
+                          <h3>Revise this recipe with the agent</h3>
+                          <div className="revision-presets">
+                            <button
+                              type="button"
+                              className="show-more-btn"
+                              onClick={() => handleReviseCurrentRecipe("Make this recipe vegetarian.")}
+                              disabled={reviseLoading}
+                            >
+                              Make Vegetarian
+                            </button>
+                            <button
+                              type="button"
+                              className="show-more-btn"
+                              onClick={() => handleReviseCurrentRecipe("Reduce spice level and keep flavor strong.")}
+                              disabled={reviseLoading}
+                            >
+                              Less Spicy
+                            </button>
+                            <button
+                              type="button"
+                              className="show-more-btn"
+                              onClick={() => handleReviseCurrentRecipe("Make this recipe cheaper with budget-friendly substitutions.")}
+                              disabled={reviseLoading}
+                            >
+                              Budget Version
+                            </button>
+                            <button
+                              type="button"
+                              className="show-more-btn"
+                              onClick={() => handleReviseCurrentRecipe("Adjust this recipe to be under 30 minutes total time.")}
+                              disabled={reviseLoading}
+                            >
+                              Under 30 Min
+                            </button>
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="Custom revision request..."
+                            value={revisionRequest}
+                            onChange={(e) => setRevisionRequest(e.target.value)}
+                          />
+                          <button
+                            type="button"
+                            className="generate-btn"
+                            onClick={() => handleReviseCurrentRecipe()}
+                            disabled={reviseLoading}
+                          >
+                            {reviseLoading ? "Revising..." : "Revise recipe"}
+                          </button>
+                          {pendingRevision && (
+                            <div className="pending-revision-box">
+                              <p>
+                                <strong>Pending Revision:</strong>{" "}
+                                {pendingRevision.title}
+                              </p>
+                              <p>{pendingRevision.description}</p>
+                              {revisionTrace?.revisionRequest && (
+                                <p>
+                                  <strong>Requested change:</strong>{" "}
+                                  {revisionTrace.revisionRequest}
+                                </p>
+                              )}
+                              <div className="pending-actions">
+                                <button
+                                  type="button"
+                                  className="generate-btn"
+                                  onClick={handleApplyPendingRevision}
+                                >
+                                  Apply revision
+                                </button>
+                                <button
+                                  type="button"
+                                  className="show-more-btn"
+                                  onClick={handleRejectPendingRevision}
+                                >
+                                  Reject revision
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         <button className="generate-btn" onClick={handleSaveRecipe}>

@@ -19,6 +19,37 @@ const extractedIngredientsSchema = {
   required: ["ingredients"],
 };
 
+const clarificationSchema = {
+  type: Type.OBJECT,
+  properties: {
+    questions: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
+    },
+  },
+  required: ["questions"],
+};
+
+const planSchema = {
+  type: Type.OBJECT,
+  properties: {
+    goal: { type: Type.STRING },
+    steps: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
+    },
+    keyConstraints: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
+    },
+    assumptions: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
+    },
+  },
+  required: ["goal", "steps", "keyConstraints", "assumptions"],
+};
+
 const recipeSchema = {
   type: Type.OBJECT,
   properties: {
@@ -80,6 +111,11 @@ const reviewedRecipeSchema = {
           prepTime: { type: Type.STRING },
           cookTime: { type: Type.STRING },
           servings: { type: Type.INTEGER },
+          whyRecommended: { type: Type.STRING },
+          tradeoffs: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+          },
           evaluation: {
             type: Type.OBJECT,
             properties: {
@@ -111,6 +147,8 @@ const reviewedRecipeSchema = {
           "prepTime",
           "cookTime",
           "servings",
+          "whyRecommended",
+          "tradeoffs",
           "evaluation",
         ],
       },
@@ -133,7 +171,14 @@ const reviewedRecipeSchema = {
 
   router.post("/generate-recipe", authenticateToken, async (req, res) => {
     try {
-      const { ingredients, preferences, culture, recipeCount } = req.body;
+      const {
+        ingredients,
+        preferences,
+        culture,
+        recipeCount,
+        clarificationContext,
+        autoReviseLowScore = true,
+      } = req.body;
   
       const userRecord = await getUserById(req.user.id);
   
@@ -186,6 +231,44 @@ const reviewedRecipeSchema = {
         .map((meal) => meal.strMeal)
         .filter(Boolean);
   
+      const planPrompt = `
+        You are a planning agent for recipe generation.
+        Create a concise plan for how the assistant should generate safe, useful recipes.
+
+        Current recipe request:
+        Ingredients: ${ingredients}
+        Current request preferences: ${preferences || "None"}
+        Requested culture: ${culture || "Any"}
+        Clarification context from user answers: ${clarificationContext || "None"}
+
+        Saved user profile:
+        Dietary style: ${savedPreferences?.dietaryStyle || "None"}
+        Allergies: ${savedPreferences?.allergies?.join(", ") || "None"}
+        Disliked ingredients: ${savedPreferences?.dislikes?.join(", ") || "None"}
+        Favorite cuisines: ${savedPreferences?.favoriteCuisines?.join(", ") || "None"}
+        Cooking goal: ${savedPreferences?.cookingGoal || "None"}
+        Max cook time: ${savedPreferences?.maxCookTime || "None"}
+        Spice level: ${savedPreferences?.spiceLevel || "None"}
+        Household size: ${savedPreferences?.householdSize || 1}
+
+        Rules:
+        - Keep each step short and actionable
+        - Highlight hard constraints explicitly
+        - Mention uncertain assumptions
+        - Return JSON only
+      `;
+
+      const planResponse = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: planPrompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: planSchema,
+        },
+      });
+
+      const planParsed = JSON.parse(planResponse.text);
+
       const prompt = `
         You are an expert recipe generator with access to both a saved user profile and current recipe instructions.
         
@@ -193,6 +276,12 @@ const reviewedRecipeSchema = {
         Ingredients: ${ingredients}
         Current request preferences: ${preferences || "None"}
         Requested culture: ${culture || "Any"}
+        Clarification context from user answers: ${clarificationContext || "None"}
+        Execution plan:
+        Goal: ${planParsed.goal}
+        Steps: ${planParsed.steps.join(" | ")}
+        Key constraints: ${planParsed.keyConstraints.join(" | ")}
+        Assumptions: ${planParsed.assumptions.join(" | ")}
         
         Saved user profile:
         Dietary style: ${savedPreferences?.dietaryStyle || "None"}
@@ -271,12 +360,15 @@ const reviewedRecipeSchema = {
         - Check whether it fits the user's current request preferences
         - Check whether it makes reasonable use of the provided ingredients
         - Check whether the recipe is practical and realistic
-        - If a recipe is weak, revise it so it better fits the user's constraints
+        - If a recipe is weak and auto-revise is enabled, revise it so it better fits the user's constraints
         - Keep the recipes distinct from one another
         - Preserve the same number of recipes
         - Return the improved recipes
+        - Add a short whyRecommended explanation for each recipe (1-3 sentences)
+        - Add 1-3 brief tradeoffs for each recipe
         - Add an evaluation object for each recipe
-        - Scores below 7 must be revised
+        - Scores below 7 must be revised only when auto-revise is enabled
+        - Auto-revise enabled: ${autoReviseLowScore ? "YES" : "NO"}
         - Return structured JSON only
         `;
 
@@ -296,7 +388,31 @@ const reviewedRecipeSchema = {
       });
   
       const reviewedParsed = JSON.parse(reviewResponse.text);
-      res.json(reviewedParsed);
+
+      const scoredRecipes = reviewedParsed?.recipes || [];
+      const scores = scoredRecipes
+        .map((r) => Number(r?.evaluation?.overallScore))
+        .filter((n) => Number.isFinite(n));
+      const avgScore = scores.length
+        ? Number((scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2))
+        : null;
+
+      const criticSummary = {
+        recipeCount: scoredRecipes.length,
+        averageScore: avgScore,
+        lowScoreCount: scoredRecipes.filter(
+          (r) => Number(r?.evaluation?.overallScore) < 7
+        ).length,
+        autoRevisedLowScores: Boolean(autoReviseLowScore),
+      };
+
+      res.json({
+        ...reviewedParsed,
+        agentTrace: {
+          planner: planParsed,
+          criticSummary,
+        },
+      });
     } catch (error) {
       console.error("Hybrid generation error:", error);
       res.status(500).json({
@@ -304,6 +420,161 @@ const reviewedRecipeSchema = {
       });
     }
   });
+
+router.post("/clarify-recipe-request", authenticateToken, async (req, res) => {
+  try {
+    const { ingredients, preferences, culture } = req.body;
+
+    const userRecord = await getUserById(req.user.id);
+    const savedPreferences = userRecord
+      ? {
+          dietaryStyle: userRecord.dietary_style || "",
+          allergies: userRecord.allergies ? JSON.parse(userRecord.allergies) : [],
+          dislikes: userRecord.dislikes ? JSON.parse(userRecord.dislikes) : [],
+          favoriteCuisines: userRecord.favorite_cuisines
+            ? JSON.parse(userRecord.favorite_cuisines)
+            : [],
+          cookingGoal: userRecord.cooking_goal || "",
+          maxCookTime: userRecord.max_cook_time || "",
+          spiceLevel: userRecord.spice_level || "",
+          householdSize: userRecord.household_size || 1,
+        }
+      : null;
+
+    const prompt = `
+      You are a recipe-planning assistant.
+      Based on the request and user profile, ask exactly 3 short clarifying questions
+      that would materially improve recipe quality.
+
+      Current request:
+      Ingredients: ${ingredients || "None provided"}
+      Preferences: ${preferences || "None"}
+      Culture: ${culture || "Any"}
+
+      Saved user profile:
+      Dietary style: ${savedPreferences?.dietaryStyle || "None"}
+      Allergies: ${savedPreferences?.allergies?.join(", ") || "None"}
+      Disliked ingredients: ${savedPreferences?.dislikes?.join(", ") || "None"}
+      Favorite cuisines: ${savedPreferences?.favoriteCuisines?.join(", ") || "None"}
+      Cooking goal: ${savedPreferences?.cookingGoal || "None"}
+      Max cook time: ${savedPreferences?.maxCookTime || "None"}
+      Spice level: ${savedPreferences?.spiceLevel || "None"}
+      Household size: ${savedPreferences?.householdSize || 1}
+
+      Rules:
+      - Return exactly 3 questions
+      - Questions must be answerable quickly
+      - Focus on constraints, cooking time, substitutions, and practical tradeoffs
+      - Return JSON only
+    `;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: clarificationSchema,
+      },
+    });
+
+    const parsed = JSON.parse(response.text);
+    res.json(parsed);
+  } catch (error) {
+    console.error("Clarification question error:", error);
+    res.status(500).json({
+      error: error?.message || "Failed to generate clarification questions",
+    });
+  }
+});
+
+router.post("/revise-recipe", authenticateToken, async (req, res) => {
+  try {
+    const { recipe, revisionRequest, ingredients, preferences, culture } = req.body;
+
+    if (!recipe || !revisionRequest?.trim()) {
+      return res.status(400).json({
+        error: "Recipe and revision request are required.",
+      });
+    }
+
+    const userRecord = await getUserById(req.user.id);
+    const savedPreferences = userRecord
+      ? {
+          dietaryStyle: userRecord.dietary_style || "",
+          allergies: userRecord.allergies ? JSON.parse(userRecord.allergies) : [],
+          dislikes: userRecord.dislikes ? JSON.parse(userRecord.dislikes) : [],
+          favoriteCuisines: userRecord.favorite_cuisines
+            ? JSON.parse(userRecord.favorite_cuisines)
+            : [],
+          cookingGoal: userRecord.cooking_goal || "",
+          maxCookTime: userRecord.max_cook_time || "",
+          spiceLevel: userRecord.spice_level || "",
+          householdSize: userRecord.household_size || 1,
+        }
+      : null;
+
+    const prompt = `
+      You are a recipe revision agent. Revise the recipe according to the user's request.
+
+      User revision request:
+      ${revisionRequest}
+
+      Current recipe:
+      ${JSON.stringify(recipe, null, 2)}
+
+      Current recipe request context:
+      Ingredients: ${ingredients || "None"}
+      Preferences: ${preferences || "None"}
+      Culture: ${culture || "Any"}
+
+      Saved user profile:
+      Dietary style: ${savedPreferences?.dietaryStyle || "None"}
+      Allergies: ${savedPreferences?.allergies?.join(", ") || "None"}
+      Disliked ingredients: ${savedPreferences?.dislikes?.join(", ") || "None"}
+      Favorite cuisines: ${savedPreferences?.favoriteCuisines?.join(", ") || "None"}
+      Cooking goal: ${savedPreferences?.cookingGoal || "None"}
+      Max cook time: ${savedPreferences?.maxCookTime || "None"}
+      Spice level: ${savedPreferences?.spiceLevel || "None"}
+      Household size: ${savedPreferences?.householdSize || 1}
+
+      Rules:
+      - Return exactly one revised recipe
+      - Keep it practical and coherent
+      - Preserve compatible parts of the original recipe where possible
+      - Respect allergies and dislikes strictly
+      - Include a short whyRecommended explanation
+      - Include an evaluation object
+      - Return JSON only in { "recipes": [ ... ] } format
+    `;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: reviewedRecipeSchema,
+      },
+    });
+
+    const parsed = JSON.parse(response.text);
+    const revisedRecipe = parsed?.recipes?.[0];
+    if (!revisedRecipe) {
+      return res.status(500).json({ error: "Failed to revise recipe." });
+    }
+    res.json({
+      recipe: revisedRecipe,
+      trace: {
+        revisionRequest,
+        revisedAt: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error("Recipe revision error:", error);
+    res.status(500).json({
+      error: error?.message || "Failed to revise recipe",
+    });
+  }
+});
 
 router.post("/extract-ingredients", upload.single("file"), async (req, res) => {
   try {
