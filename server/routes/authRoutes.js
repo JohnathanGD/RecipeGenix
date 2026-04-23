@@ -3,6 +3,10 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import db from "../config/db.js";
 import { authenticateToken } from "../middleware/auth.js";
+import {
+  normalizeCookTimeStored,
+  sanitizeCookTimeInput,
+} from "../../shared/userPreferences.js";
 
 const router = express.Router();
 
@@ -30,8 +34,7 @@ function mapUserRowToClient(user) {
       dislikes: safeJsonArray(user.dislikes),
       favoriteCuisines: safeJsonArray(user.favorite_cuisines),
       cookingGoal: user.cooking_goal || "",
-      maxCookTime: user.max_cook_time || "",
-      spiceLevel: user.spice_level || "",
+      maxCookTime: normalizeCookTimeStored(user.max_cook_time),
       householdSize: user.household_size || 1,
     },
   };
@@ -51,7 +54,6 @@ router.post("/signup", async (req, res) => {
       favoriteCuisines,
       cookingGoal,
       maxCookTime,
-      spiceLevel,
       householdSize,
     } = req.body;
 
@@ -101,8 +103,8 @@ router.post("/signup", async (req, res) => {
         JSON.stringify(parsedDislikes),
         JSON.stringify(parsedFavoriteCuisines),
         cookingGoal || "",
-        maxCookTime || "",
-        spiceLevel || "",
+        sanitizeCookTimeInput(maxCookTime) || "",
+        "",
         householdSize || 1,
       ],
       function (err) {
@@ -133,8 +135,7 @@ router.post("/signup", async (req, res) => {
               dislikes: parsedDislikes,
               favoriteCuisines: parsedFavoriteCuisines,
               cookingGoal: cookingGoal || "",
-              maxCookTime: maxCookTime || "",
-              spiceLevel: spiceLevel || "",
+              maxCookTime: sanitizeCookTimeInput(maxCookTime) || "",
               householdSize: householdSize || 1,
             },
           },
@@ -267,12 +268,8 @@ router.patch("/me", authenticateToken, (req, res) => {
         : existing.cooking_goal || "";
     const maxCookTime =
       b.maxCookTime !== undefined && b.maxCookTime !== null
-        ? String(b.maxCookTime)
-        : existing.max_cook_time || "";
-    const spiceLevel =
-      b.spiceLevel !== undefined && b.spiceLevel !== null
-        ? String(b.spiceLevel)
-        : existing.spice_level || "";
+        ? sanitizeCookTimeInput(b.maxCookTime)
+        : normalizeCookTimeStored(existing.max_cook_time);
 
     let household =
       b.householdSize != null && b.householdSize !== ""
@@ -309,7 +306,7 @@ router.patch("/me", authenticateToken, (req, res) => {
         JSON.stringify(parsedFavoriteCuisines),
         cookingGoal || "",
         maxCookTime || "",
-        spiceLevel || "",
+        "",
         household,
         userId,
       ],

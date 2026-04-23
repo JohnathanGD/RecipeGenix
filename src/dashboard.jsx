@@ -11,6 +11,27 @@ function parseGroceryListItems(text) {
     .filter(Boolean);
 }
 
+function buildSessionUserFeedbackFromSaved(savedRecipes) {
+  if (!Array.isArray(savedRecipes) || !savedRecipes.length) return "";
+  const lines = [];
+  for (const recipe of savedRecipes) {
+    const fb = recipe.userFeedback;
+    if (!fb) continue;
+    const noteStr = (fb.notes || "").trim();
+    if (!fb.rating && !noteStr) continue;
+    const title = recipe.title || "Saved recipe";
+    const bits = [`Saved recipe "${title}"`];
+    if (fb.rating === "up") bits.push("user liked it after trying (thumbs up)");
+    else if (fb.rating === "down") {
+      bits.push("user did not like it after trying (thumbs down)");
+    }
+    if (noteStr) bits.push(`notes: ${noteStr}`);
+    lines.push(`- ${bits.join(" — ")}`);
+    if (lines.length >= 15) break;
+  }
+  return lines.join("\n");
+}
+
 export default function Dashboard() {
   const [ingredients, setIngredients] = useState("");
   const [preferences, setPreferences] = useState("");
@@ -35,6 +56,9 @@ export default function Dashboard() {
   const groceryFileInputRef = useRef(null);
   const [groceryLists, setGroceryLists] = useState([]);
   const [selectedRecipeListId, setSelectedRecipeListId] = useState("");
+  const [savedRecipeSearch, setSavedRecipeSearch] = useState("");
+  const [savedRecipeCultureFilter, setSavedRecipeCultureFilter] = useState("all");
+  const [savedRecipeScoreFilter, setSavedRecipeScoreFilter] = useState("all");
   const [newListName, setNewListName] = useState("");
   const [groceryListText, setGroceryListText] = useState("");
   const [groceryUploadLoading, setGroceryUploadLoading] = useState(false);
@@ -43,6 +67,42 @@ export default function Dashboard() {
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const username = user?.firstName;
   const currentRecipe = recipesData?.recipes?.[currentRecipeIndex];
+  const savedRecipeCultureOptions = Array.from(
+    new Set(
+      savedRecipes
+        .map((recipe) => recipe.culture || "Unknown")
+        .filter(Boolean)
+    )
+  );
+  const normalizedSavedRecipeSearch = savedRecipeSearch.trim().toLowerCase();
+  const filteredSavedRecipes = savedRecipes.filter((recipe) => {
+    const title = (recipe.title || "").toLowerCase();
+    const description = (recipe.description || "").toLowerCase();
+    const cultureName = recipe.culture || "Unknown";
+    const score = Number(recipe?.evaluation?.overallScore);
+
+    const matchesSearch =
+      !normalizedSavedRecipeSearch ||
+      title.includes(normalizedSavedRecipeSearch) ||
+      description.includes(normalizedSavedRecipeSearch);
+
+    const matchesCulture =
+      savedRecipeCultureFilter === "all" ||
+      cultureName === savedRecipeCultureFilter;
+
+    let matchesScore = true;
+    if (savedRecipeScoreFilter === "8plus") {
+      matchesScore = Number.isFinite(score) && score >= 8;
+    } else if (savedRecipeScoreFilter === "5to7") {
+      matchesScore = Number.isFinite(score) && score >= 5 && score < 8;
+    } else if (savedRecipeScoreFilter === "below5") {
+      matchesScore = Number.isFinite(score) && score < 5;
+    } else if (savedRecipeScoreFilter === "unrated") {
+      matchesScore = !Number.isFinite(score);
+    }
+
+    return matchesSearch && matchesCulture && matchesScore;
+  });
 
   const getScoreClass = (overallScore) => {
     const numericScore = Number(overallScore);
@@ -280,6 +340,7 @@ export default function Dashboard() {
 
     try {
       const token = localStorage.getItem("token");
+      const sessionUserFeedback = buildSessionUserFeedbackFromSaved(savedRecipes);
 
       const res = await fetch("http://localhost:5050/generate-recipe", {
         method: "POST",
@@ -294,6 +355,9 @@ export default function Dashboard() {
           recipeCount,
           clarificationContext: buildClarificationContext(),
           autoReviseLowScore,
+          ...(sessionUserFeedback
+            ? { sessionUserFeedback }
+            : {}),
         }),
       });
 
@@ -313,6 +377,8 @@ export default function Dashboard() {
       setShowAgentTrace(false);
       setPendingRevision(null);
       setRevisionTrace(null);
+      setClarificationQuestions([]);
+      setClarificationAnswers([]);
     } catch (error) {
       console.error(error);
       alert(error.message || "Failed to generate recipe");
@@ -495,7 +561,8 @@ export default function Dashboard() {
                 </div>
                 <p className="section-text">
                 Create a list by typing items below or uploading a PDF or .txt file to
-                have it analyzed and turned into items. Then name the list and click + to save.
+                have it analyzed and turned into items. Name the list, then use{" "}
+                <strong>Save list</strong> next to upload.
                 </p>
 
                 <div className="add-list">
@@ -567,14 +634,58 @@ export default function Dashboard() {
                   <span className="panel-role panel-role--data">Data/Admin</span>
                 </div>
                 <p className="section-text">
-                Here are your saved recipes. You can also choose to rate each recipe.
+                  Open a recipe to cook it, then add your feedback there. That
+                  feedback is used the next time you generate recipes.
+                </p>
+                <div className="saved-recipe-filters">
+                  <input
+                    type="text"
+                    value={savedRecipeSearch}
+                    onChange={(e) => setSavedRecipeSearch(e.target.value)}
+                    placeholder="Search title or description..."
+                  />
+                  <select
+                    value={savedRecipeCultureFilter}
+                    onChange={(e) => setSavedRecipeCultureFilter(e.target.value)}
+                  >
+                    <option value="all">All cultures</option>
+                    {savedRecipeCultureOptions.map((cultureName) => (
+                      <option key={cultureName} value={cultureName}>
+                        {cultureName}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={savedRecipeScoreFilter}
+                    onChange={(e) => setSavedRecipeScoreFilter(e.target.value)}
+                  >
+                    <option value="all">All scores</option>
+                    <option value="8plus">8+ score</option>
+                    <option value="5to7">5 to 7.9</option>
+                    <option value="below5">Below 5</option>
+                    <option value="unrated">Unrated</option>
+                  </select>
+                  <button
+                    type="button"
+                    className="show-more-btn saved-filter-reset"
+                    onClick={() => {
+                      setSavedRecipeSearch("");
+                      setSavedRecipeCultureFilter("all");
+                      setSavedRecipeScoreFilter("all");
+                    }}
+                  >
+                    Clear
+                  </button>
+                </div>
+                <p className="saved-recipes-count">
+                  Showing {filteredSavedRecipes.length} of {savedRecipes.length} recipes
                 </p>
 
                 <div className="list-container saved-recipes-list">
-                {savedRecipes.length === 0 ? (
+                {filteredSavedRecipes.length === 0 ? (
                     <p className="empty-text">No saved recipes yet.</p>
                 ) : (
-                    savedRecipes.map((recipe) => (
+                    filteredSavedRecipes.map((recipe) => (
                     <Link
                         key={recipe.id}
                         to={`/dashboard/saved-recipe/${recipe.id}`}
@@ -596,10 +707,25 @@ export default function Dashboard() {
                         </p>
                         )}
 
+                        {(recipe.userFeedback?.rating ||
+                          recipe.userFeedback?.notes?.trim()) && (
+                          <p className="section-text saved-recipe-item__cook-feedback">
+                            <strong>Your feedback:</strong>{" "}
+                            {recipe.userFeedback.rating === "up"
+                              ? "Thumbs up"
+                              : recipe.userFeedback.rating === "down"
+                                ? "Thumbs down"
+                                : ""}
+                            {recipe.userFeedback?.notes?.trim()
+                              ? `${recipe.userFeedback.rating ? " — " : ""}${recipe.userFeedback.notes.trim()}`
+                              : ""}
+                          </p>
+                        )}
                         {recipe.evaluation?.revisionNotes && (
-                        <p className="section-text saved-recipe-item__feedback">
-                            <strong>Feedback:</strong> {recipe.evaluation.revisionNotes}
-                        </p>
+                          <p className="section-text saved-recipe-item__feedback">
+                            <strong>Agent notes:</strong>{" "}
+                            {recipe.evaluation.revisionNotes}
+                          </p>
                         )}
                         <p className="list-item__hint saved-recipe-item__hint">View full recipe →</p>
                     </Link>
@@ -642,7 +768,8 @@ export default function Dashboard() {
                 </div>
 
                 <p className="section-text">
-                If you don't, please proceed filling out ingredients you would like to use in your reciepes.
+                If you don&apos;t use a list, type the ingredients you want in your
+                recipes below.
                 </p>
 
                 <form onSubmit={handleGenerate} className="form">
@@ -666,7 +793,15 @@ export default function Dashboard() {
                     />
                 </div>
 
-                <div className="input-group">
+                <div className="input-group clarify-agent-block">
+                    <p className="section-text clarify-agent-block__desc">
+                      Optional step before you generate: the agent proposes a few
+                      short questions (time, portions, what to avoid, etc.) based
+                      on your ingredients and preferences. Answer any you care about —
+                      those replies are bundled into the next generation only, then
+                      this panel clears after recipes are created so you can start
+                      fresh next time.
+                    </p>
                     <button
                       type="button"
                       className="show-more-btn"
@@ -722,13 +857,28 @@ export default function Dashboard() {
                     />
                 </div>
 
-                <label className="agent-toggle">
-                  <input
-                    type="checkbox"
-                    checked={autoReviseLowScore}
-                    onChange={(e) => setAutoReviseLowScore(e.target.checked)}
-                  />
-                  Auto-revise recipes with score below 7
+                <label className="auto-revise-toggle">
+                  <span className="auto-revise-toggle__copy">
+                    <span className="auto-revise-toggle__title">
+                      Auto-revise weak drafts
+                    </span>
+                    <span className="auto-revise-toggle__hint">
+                      When on, the critic pass automatically tightens any recipe scored
+                      under 7 before you see results.
+                    </span>
+                  </span>
+                  <span className="auto-revise-toggle__switch-wrap">
+                    <input
+                      type="checkbox"
+                      className="auto-revise-toggle__input"
+                      checked={autoReviseLowScore}
+                      onChange={(e) => setAutoReviseLowScore(e.target.checked)}
+                      aria-label="Auto-revise recipes scored below 7"
+                    />
+                    <span className="auto-revise-toggle__track" aria-hidden>
+                      <span className="auto-revise-toggle__thumb" />
+                    </span>
+                  </span>
                 </label>
 
                 <button type="submit" className="generate-btn">
@@ -840,6 +990,12 @@ export default function Dashboard() {
                         </p>
                     )}
 
+                    <p className="section-text recipe-save-hint">
+                      Save a recipe to your list, try it at home, then add thumbs
+                      and notes on the saved recipe page — that feedback shapes your
+                      next generation run.
+                    </p>
+
                     {currentRecipe?.whyRecommended && (
                       <div className="recipe-section why-section">
                         <h3>Why the agent recommends this</h3>
@@ -923,6 +1079,18 @@ export default function Dashboard() {
                             </ul>
                         </div>
 
+                        {Array.isArray(currentRecipe.ingredientsToBuy) &&
+                          currentRecipe.ingredientsToBuy.length > 0 && (
+                            <div className="recipe-section">
+                              <h3>Ingredients to Buy</h3>
+                              <ul>
+                                {currentRecipe.ingredientsToBuy.map((item, i) => (
+                                  <li key={`${item}-${i}`}>{item}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
                         <div className="recipe-section">
                             <h3>Instructions</h3>
                             <ol>
@@ -993,6 +1161,15 @@ export default function Dashboard() {
                                 <p>
                                   <strong>Requested change:</strong>{" "}
                                   {revisionTrace.revisionRequest}
+                                </p>
+                              )}
+                              {revisionTrace?.userFeedback && (
+                                <p>
+                                  <strong>User feedback included:</strong>{" "}
+                                  {revisionTrace.userFeedback.sentiment}
+                                  {revisionTrace.userFeedback.notes
+                                    ? ` — ${revisionTrace.userFeedback.notes}`
+                                    : ""}
                                 </p>
                               )}
                               <div className="pending-actions">

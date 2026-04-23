@@ -4,8 +4,30 @@ import ai from "../config/ai.js";
 import { Type } from "@google/genai";
 import db from "../config/db.js";
 import { authenticateToken } from "../middleware/auth.js";
+import {
+  normalizeCookTimeStored,
+  formatCookTimeForPrompt,
+} from "../../shared/userPreferences.js";
 
 const router = express.Router();
+
+function buildSavedPreferences(userRecord) {
+  if (!userRecord) return null;
+  const maxRaw = userRecord.max_cook_time || "";
+  const maxCookTime = normalizeCookTimeStored(maxRaw);
+  return {
+    dietaryStyle: userRecord.dietary_style || "",
+    allergies: userRecord.allergies ? JSON.parse(userRecord.allergies) : [],
+    dislikes: userRecord.dislikes ? JSON.parse(userRecord.dislikes) : [],
+    favoriteCuisines: userRecord.favorite_cuisines
+      ? JSON.parse(userRecord.favorite_cuisines)
+      : [],
+    cookingGoal: userRecord.cooking_goal || "",
+    maxCookTime,
+    cookTimeLabel: formatCookTimeForPrompt(maxCookTime),
+    householdSize: userRecord.household_size || 1,
+  };
+}
 const upload = multer({ storage: multer.memoryStorage() });
 
 const extractedIngredientsSchema = {
@@ -112,6 +134,10 @@ const reviewedRecipeSchema = {
           cookTime: { type: Type.STRING },
           servings: { type: Type.INTEGER },
           whyRecommended: { type: Type.STRING },
+          ingredientsToBuy: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+          },
           tradeoffs: {
             type: Type.ARRAY,
             items: { type: Type.STRING },
@@ -148,6 +174,7 @@ const reviewedRecipeSchema = {
           "cookTime",
           "servings",
           "whyRecommended",
+          "ingredientsToBuy",
           "tradeoffs",
           "evaluation",
         ],
@@ -178,24 +205,11 @@ const reviewedRecipeSchema = {
         recipeCount,
         clarificationContext,
         autoReviseLowScore = true,
+        sessionUserFeedback,
       } = req.body;
   
       const userRecord = await getUserById(req.user.id);
-  
-      const savedPreferences = userRecord
-        ? {
-            dietaryStyle: userRecord.dietary_style || "",
-            allergies: userRecord.allergies ? JSON.parse(userRecord.allergies) : [],
-            dislikes: userRecord.dislikes ? JSON.parse(userRecord.dislikes) : [],
-            favoriteCuisines: userRecord.favorite_cuisines
-              ? JSON.parse(userRecord.favorite_cuisines)
-              : [],
-            cookingGoal: userRecord.cooking_goal || "",
-            maxCookTime: userRecord.max_cook_time || "",
-            spiceLevel: userRecord.spice_level || "",
-            householdSize: userRecord.household_size || 1,
-          }
-        : null;
+      const savedPreferences = buildSavedPreferences(userRecord);
   
       if (!ingredients?.trim()) {
         return res.status(400).json({
@@ -240,6 +254,8 @@ const reviewedRecipeSchema = {
         Current request preferences: ${preferences || "None"}
         Requested culture: ${culture || "Any"}
         Clarification context from user answers: ${clarificationContext || "None"}
+        Recent user feedback from this session (honor it in planning and constraints):
+        ${sessionUserFeedback?.trim() || "None"}
 
         Saved user profile:
         Dietary style: ${savedPreferences?.dietaryStyle || "None"}
@@ -247,8 +263,7 @@ const reviewedRecipeSchema = {
         Disliked ingredients: ${savedPreferences?.dislikes?.join(", ") || "None"}
         Favorite cuisines: ${savedPreferences?.favoriteCuisines?.join(", ") || "None"}
         Cooking goal: ${savedPreferences?.cookingGoal || "None"}
-        Max cook time: ${savedPreferences?.maxCookTime || "None"}
-        Spice level: ${savedPreferences?.spiceLevel || "None"}
+        Preferred cook window: ${savedPreferences?.cookTimeLabel || "Not specified"}
         Household size: ${savedPreferences?.householdSize || 1}
 
         Rules:
@@ -277,6 +292,8 @@ const reviewedRecipeSchema = {
         Current request preferences: ${preferences || "None"}
         Requested culture: ${culture || "Any"}
         Clarification context from user answers: ${clarificationContext || "None"}
+        Recent user feedback from this session (adjust recipes to reflect what the user liked or disliked):
+        ${sessionUserFeedback?.trim() || "None"}
         Execution plan:
         Goal: ${planParsed.goal}
         Steps: ${planParsed.steps.join(" | ")}
@@ -289,8 +306,7 @@ const reviewedRecipeSchema = {
         Disliked ingredients: ${savedPreferences?.dislikes?.join(", ") || "None"}
         Favorite cuisines: ${savedPreferences?.favoriteCuisines?.join(", ") || "None"}
         Cooking goal: ${savedPreferences?.cookingGoal || "None"}
-        Max cook time: ${savedPreferences?.maxCookTime || "None"}
-        Spice level: ${savedPreferences?.spiceLevel || "None"}
+        Preferred cook window: ${savedPreferences?.cookTimeLabel || "Not specified"}
         Household size: ${savedPreferences?.householdSize || 1}
         
         Relevant meal inspirations from TheMealDB:
@@ -304,7 +320,7 @@ const reviewedRecipeSchema = {
         - Use the saved user profile as long-term guidance
         - Prefer favorite cuisines when they fit the request
         - Align recipes with the user's cooking goal when possible
-        - Keep recipes within the preferred cook time when possible
+        - Match total active cooking time to the user's preferred cook window when possible
         - Adjust servings to household size when reasonable
         - Not all provided ingredients must be used in every recipe
         - Use only the ingredients that make sense for each recipe
@@ -341,12 +357,14 @@ const reviewedRecipeSchema = {
         Disliked ingredients: ${savedPreferences?.dislikes?.join(", ") || "None"}
         Favorite cuisines: ${savedPreferences?.favoriteCuisines?.join(", ") || "None"}
         Cooking goal: ${savedPreferences?.cookingGoal || "None"}
-        Max cook time: ${savedPreferences?.maxCookTime || "None"}
-        Spice level: ${savedPreferences?.spiceLevel || "None"}
+        Preferred cook window: ${savedPreferences?.cookTimeLabel || "Not specified"}
         Household size: ${savedPreferences?.householdSize || 1}
         
         MealDB inspirations:
         ${mealNames.length ? mealNames.join(", ") : "No inspirations found"}
+
+        Recent user feedback from this session (use when revising or scoring):
+        ${sessionUserFeedback?.trim() || "None"}
         
         Here are the generated recipes to review:
         ${JSON.stringify(parsed.recipes, null, 2)}
@@ -365,6 +383,10 @@ const reviewedRecipeSchema = {
         - Preserve the same number of recipes
         - Return the improved recipes
         - Add a short whyRecommended explanation for each recipe (1-3 sentences)
+        - Add an ingredientsToBuy list for each recipe:
+          - Include only items likely missing from the user's provided ingredients
+          - Keep the list concise and practical
+          - Return [] if no extra purchases are needed
         - Add 1-3 brief tradeoffs for each recipe
         - Add an evaluation object for each recipe
         - Scores below 7 must be revised only when auto-revise is enabled
@@ -426,20 +448,7 @@ router.post("/clarify-recipe-request", authenticateToken, async (req, res) => {
     const { ingredients, preferences, culture } = req.body;
 
     const userRecord = await getUserById(req.user.id);
-    const savedPreferences = userRecord
-      ? {
-          dietaryStyle: userRecord.dietary_style || "",
-          allergies: userRecord.allergies ? JSON.parse(userRecord.allergies) : [],
-          dislikes: userRecord.dislikes ? JSON.parse(userRecord.dislikes) : [],
-          favoriteCuisines: userRecord.favorite_cuisines
-            ? JSON.parse(userRecord.favorite_cuisines)
-            : [],
-          cookingGoal: userRecord.cooking_goal || "",
-          maxCookTime: userRecord.max_cook_time || "",
-          spiceLevel: userRecord.spice_level || "",
-          householdSize: userRecord.household_size || 1,
-        }
-      : null;
+    const savedPreferences = buildSavedPreferences(userRecord);
 
     const prompt = `
       You are a recipe-planning assistant.
@@ -457,8 +466,7 @@ router.post("/clarify-recipe-request", authenticateToken, async (req, res) => {
       Disliked ingredients: ${savedPreferences?.dislikes?.join(", ") || "None"}
       Favorite cuisines: ${savedPreferences?.favoriteCuisines?.join(", ") || "None"}
       Cooking goal: ${savedPreferences?.cookingGoal || "None"}
-      Max cook time: ${savedPreferences?.maxCookTime || "None"}
-      Spice level: ${savedPreferences?.spiceLevel || "None"}
+      Preferred cook window: ${savedPreferences?.cookTimeLabel || "Not specified"}
       Household size: ${savedPreferences?.householdSize || 1}
 
       Rules:
@@ -487,9 +495,18 @@ router.post("/clarify-recipe-request", authenticateToken, async (req, res) => {
   }
 });
 
+function formatUserFeedbackForPrompt(userFeedback) {
+  if (!userFeedback || typeof userFeedback !== "object") return "None";
+  const sentiment = String(userFeedback.sentiment || "").trim() || "not given";
+  const notes = String(userFeedback.notes || "").trim();
+  if (sentiment === "not given" && !notes) return "None";
+  return `Sentiment: ${sentiment}${notes ? `\nUser notes: ${notes}` : ""}`;
+}
+
 router.post("/revise-recipe", authenticateToken, async (req, res) => {
   try {
-    const { recipe, revisionRequest, ingredients, preferences, culture } = req.body;
+    const { recipe, revisionRequest, ingredients, preferences, culture, userFeedback } =
+      req.body;
 
     if (!recipe || !revisionRequest?.trim()) {
       return res.status(400).json({
@@ -498,26 +515,18 @@ router.post("/revise-recipe", authenticateToken, async (req, res) => {
     }
 
     const userRecord = await getUserById(req.user.id);
-    const savedPreferences = userRecord
-      ? {
-          dietaryStyle: userRecord.dietary_style || "",
-          allergies: userRecord.allergies ? JSON.parse(userRecord.allergies) : [],
-          dislikes: userRecord.dislikes ? JSON.parse(userRecord.dislikes) : [],
-          favoriteCuisines: userRecord.favorite_cuisines
-            ? JSON.parse(userRecord.favorite_cuisines)
-            : [],
-          cookingGoal: userRecord.cooking_goal || "",
-          maxCookTime: userRecord.max_cook_time || "",
-          spiceLevel: userRecord.spice_level || "",
-          householdSize: userRecord.household_size || 1,
-        }
-      : null;
+    const savedPreferences = buildSavedPreferences(userRecord);
+
+    const feedbackBlock = formatUserFeedbackForPrompt(userFeedback);
 
     const prompt = `
       You are a recipe revision agent. Revise the recipe according to the user's request.
 
       User revision request:
       ${revisionRequest}
+
+      User feedback on the recipe before this revision (incorporate into your changes):
+      ${feedbackBlock}
 
       Current recipe:
       ${JSON.stringify(recipe, null, 2)}
@@ -533,8 +542,7 @@ router.post("/revise-recipe", authenticateToken, async (req, res) => {
       Disliked ingredients: ${savedPreferences?.dislikes?.join(", ") || "None"}
       Favorite cuisines: ${savedPreferences?.favoriteCuisines?.join(", ") || "None"}
       Cooking goal: ${savedPreferences?.cookingGoal || "None"}
-      Max cook time: ${savedPreferences?.maxCookTime || "None"}
-      Spice level: ${savedPreferences?.spiceLevel || "None"}
+      Preferred cook window: ${savedPreferences?.cookTimeLabel || "Not specified"}
       Household size: ${savedPreferences?.householdSize || 1}
 
       Rules:
@@ -565,6 +573,7 @@ router.post("/revise-recipe", authenticateToken, async (req, res) => {
       recipe: revisedRecipe,
       trace: {
         revisionRequest,
+        userFeedback: userFeedback || null,
         revisedAt: new Date().toISOString(),
       },
     });

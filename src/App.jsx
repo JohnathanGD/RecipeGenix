@@ -183,7 +183,10 @@ function MainPage() {
             />
           </div>
 
-          <p className="section-text">If you don't, please proceed filling out ingredients you would like to use in your reciepes.</p>
+          <p className="section-text">
+            If you don&apos;t use a list, type the ingredients you want in your
+            recipes below.
+          </p>
 
             <form onSubmit={handleGenerate} className="form">
               <div className="input-group">

@@ -1,5 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  COOK_TIME_SELECTABLE,
+  DIETARY_STYLE_OPTIONS,
+  COOKING_GOAL_OPTIONS,
+  sanitizeCookTimeInput,
+} from "../shared/userPreferences.js";
+import "./css/App.css";
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -16,7 +23,6 @@ export default function Signup() {
     favoriteCuisines: "",
     cookingGoal: "",
     maxCookTime: "",
-    spiceLevel: "",
     householdSize: 1,
   });
 
@@ -31,6 +37,10 @@ export default function Signup() {
       ...prev,
       [name]: value,
     }));
+  };
+
+  const setPref = (name, value) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
@@ -62,8 +72,7 @@ export default function Signup() {
           dislikes: formData.dislikes,
           favoriteCuisines: formData.favoriteCuisines,
           cookingGoal: formData.cookingGoal,
-          maxCookTime: formData.maxCookTime,
-          spiceLevel: formData.spiceLevel,
+          maxCookTime: sanitizeCookTimeInput(formData.maxCookTime),
           householdSize: Number(formData.householdSize),
         }),
       });
@@ -92,157 +101,197 @@ export default function Signup() {
   };
 
   return (
-    <main className="page">
-      <section className="hero">
-        <div className="hero-text">
-          <h1>Sign Up</h1>
+    <main className="page signup-page">
+      <section className="hero signup-hero">
+        <div className="hero-text signup-hero-inner">
+          <h1>Create your account</h1>
+          <p className="signup-tagline">
+            Set your kitchen profile once — we tailor recipes like a fitness app
+            sets your plan.
+          </p>
 
-          <form className="input-group" onSubmit={handleSubmit}>
-            <input
-              type="text"
-              name="firstName"
-              placeholder="First Name"
-              value={formData.firstName}
-              required
-              onChange={handleChange}
-            />
+          <form className="signup-form" onSubmit={handleSubmit}>
+            <div className="signup-card signup-card--identity">
+              <p className="prefs-fitness-kicker">Account</p>
+              <h2 className="signup-card-title">Basics</h2>
+              <div className="signup-field-grid">
+                <input
+                  type="text"
+                  name="firstName"
+                  placeholder="First name"
+                  value={formData.firstName}
+                  required
+                  onChange={handleChange}
+                />
+                <input
+                  type="text"
+                  name="lastName"
+                  placeholder="Last name"
+                  value={formData.lastName}
+                  required
+                  onChange={handleChange}
+                />
+                <input
+                  type="date"
+                  name="dob"
+                  value={formData.dob}
+                  required
+                  onChange={handleChange}
+                  className="signup-span-2"
+                />
+                <input
+                  type="email"
+                  name="email"
+                  placeholder="Email"
+                  value={formData.email}
+                  required
+                  onChange={handleChange}
+                  className="signup-span-2"
+                />
+                <input
+                  type="password"
+                  name="password"
+                  placeholder="Password"
+                  value={formData.password}
+                  required
+                  onChange={handleChange}
+                  className="signup-span-2"
+                />
+                <input
+                  type="password"
+                  name="confirmPassword"
+                  placeholder="Confirm password"
+                  value={formData.confirmPassword}
+                  required
+                  onChange={handleChange}
+                  className="signup-span-2"
+                />
+              </div>
+            </div>
 
-            <input
-              type="text"
-              name="lastName"
-              placeholder="Last Name"
-              value={formData.lastName}
-              required
-              onChange={handleChange}
-            />
+            <div className="signup-card signup-card--prefs">
+              <p className="prefs-fitness-kicker">Your cooking profile</p>
+              <h2 className="signup-card-title">How you like to eat</h2>
 
-            <input
-              type="date"
-              name="dob"
-              value={formData.dob}
-              required
-              onChange={handleChange}
-            />
+              <div className="pref-panel pref-panel--signup">
+                <h3 className="pref-panel__title">Typical cook window</h3>
+                <p className="pref-panel__hint">
+                  Choose the slot that matches most weeknights — we keep recipes in
+                  range.
+                </p>
+                <div className="pref-chip-grid pref-chip-grid--tight">
+                  {COOK_TIME_SELECTABLE.map((opt) => (
+                    <button
+                      key={opt.value || "none"}
+                      type="button"
+                      className={`pref-chip${
+                        formData.maxCookTime === opt.value
+                          ? " pref-chip--active"
+                          : ""
+                      }`}
+                      onClick={() => setPref("maxCookTime", opt.value)}
+                    >
+                      <span className="pref-chip__label">{opt.label}</span>
+                      {opt.hint ? (
+                        <span className="pref-chip__hint">{opt.hint}</span>
+                      ) : null}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-            <input
-              type="email"
-              name="email"
-              placeholder="Email"
-              value={formData.email}
-              required
-              onChange={handleChange}
-            />
+              <div className="pref-panel pref-panel--signup">
+                <h3 className="pref-panel__title">Eating style</h3>
+                <p className="pref-panel__hint">Diet pattern recipes should follow.</p>
+                <div className="pref-chip-grid">
+                  {DIETARY_STYLE_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value || "unset"}
+                      type="button"
+                      className={`pref-chip pref-chip--compact${
+                        formData.dietaryStyle === opt.value
+                          ? " pref-chip--active"
+                          : ""
+                      }`}
+                      onClick={() => setPref("dietaryStyle", opt.value)}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-            <input
-              type="password"
-              name="password"
-              placeholder="Password"
-              value={formData.password}
-              required
-              onChange={handleChange}
-            />
+              <div className="pref-panel pref-panel--signup">
+                <h3 className="pref-panel__title">Kitchen focus</h3>
+                <p className="pref-panel__hint">What “winning” looks like for your meals.</p>
+                <div className="pref-chip-grid">
+                  {COOKING_GOAL_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value || "unset-goal"}
+                      type="button"
+                      className={`pref-chip pref-chip--compact${
+                        formData.cookingGoal === opt.value
+                          ? " pref-chip--active"
+                          : ""
+                      }`}
+                      onClick={() => setPref("cookingGoal", opt.value)}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-            <input
-              type="password"
-              name="confirmPassword"
-              placeholder="Re-type Password"
-              value={formData.confirmPassword}
-              required
-              onChange={handleChange}
-            />
+              <div className="pref-panel pref-panel--signup">
+                <h3 className="pref-panel__title">Details</h3>
+                <div className="signup-field-grid">
+                  <input
+                    type="text"
+                    name="allergies"
+                    placeholder="Allergies (comma separated)"
+                    value={formData.allergies}
+                    onChange={handleChange}
+                    className="signup-span-2"
+                  />
+                  <input
+                    type="text"
+                    name="dislikes"
+                    placeholder="Disliked ingredients (comma separated)"
+                    value={formData.dislikes}
+                    onChange={handleChange}
+                    className="signup-span-2"
+                  />
+                  <input
+                    type="text"
+                    name="favoriteCuisines"
+                    placeholder="Favorite cuisines (comma separated)"
+                    value={formData.favoriteCuisines}
+                    onChange={handleChange}
+                    className="signup-span-2"
+                  />
+                  <label className="signup-household-label signup-span-2">
+                    Household size
+                    <input
+                      type="number"
+                      name="householdSize"
+                      min="1"
+                      max="12"
+                      value={formData.householdSize}
+                      onChange={handleChange}
+                      className="signup-household-input"
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
 
-            <h3>Food Preferences</h3>
+            {error && <p className="account-message account-message--error">{error}</p>}
+            {success && (
+              <p className="account-message account-message--success">{success}</p>
+            )}
 
-            <select
-              name="dietaryStyle"
-              value={formData.dietaryStyle}
-              onChange={handleChange}
-            >
-              <option value="">Dietary Style</option>
-              <option value="none">No Restriction</option>
-              <option value="vegetarian">Vegetarian</option>
-              <option value="vegan">Vegan</option>
-              <option value="pescatarian">Pescatarian</option>
-              <option value="keto">Keto</option>
-              <option value="halal">Halal</option>
-              <option value="gluten-free">Gluten-Free</option>
-            </select>
-
-            <input
-              type="text"
-              name="allergies"
-              placeholder="Allergies (comma separated)"
-              value={formData.allergies}
-              onChange={handleChange}
-            />
-
-            <input
-              type="text"
-              name="dislikes"
-              placeholder="Disliked ingredients (comma separated)"
-              value={formData.dislikes}
-              onChange={handleChange}
-            />
-
-            <input
-              type="text"
-              name="favoriteCuisines"
-              placeholder="Favorite cuisines (comma separated)"
-              value={formData.favoriteCuisines}
-              onChange={handleChange}
-            />
-
-            <select
-              name="cookingGoal"
-              value={formData.cookingGoal}
-              onChange={handleChange}
-            >
-              <option value="">Cooking Goal</option>
-              <option value="quick-meals">Quick Meals</option>
-              <option value="high-protein">High Protein</option>
-              <option value="budget-friendly">Budget Friendly</option>
-              <option value="healthy">Healthy</option>
-              <option value="comfort-food">Comfort Food</option>
-            </select>
-
-            <select
-              name="maxCookTime"
-              value={formData.maxCookTime}
-              onChange={handleChange}
-            >
-              <option value="">Max Cook Time</option>
-              <option value="15">15 min</option>
-              <option value="30">30 min</option>
-              <option value="45">45 min</option>
-              <option value="60">60 min</option>
-            </select>
-
-            <select
-              name="spiceLevel"
-              value={formData.spiceLevel}
-              onChange={handleChange}
-            >
-              <option value="">Spice Preference</option>
-              <option value="mild">Mild</option>
-              <option value="medium">Medium</option>
-              <option value="spicy">Spicy</option>
-            </select>
-
-            <input
-              type="number"
-              name="householdSize"
-              placeholder="Household Size"
-              min="1"
-              max="12"
-              value={formData.householdSize}
-              onChange={handleChange}
-            />
-
-            {error && <p style={{ color: "red" }}>{error}</p>}
-            {success && <p style={{ color: "green" }}>{success}</p>}
-
-            <button type="submit" className="generate-btn" disabled={loading}>
-              {loading ? "Creating Account..." : "Make Account"}
+            <button type="submit" className="generate-btn signup-submit" disabled={loading}>
+              {loading ? "Creating account…" : "Start cooking"}
             </button>
           </form>
         </div>

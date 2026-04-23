@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -59,36 +59,48 @@ export default function Login() {
       <section className="hero">
         <div className="hero-text">
           <h1>Login</h1>
+          <p className="section-text auth-lead">
+            Welcome back — sign in to open your dashboard and saved lists.
+          </p>
 
-          <form className="input-group" onSubmit={handleSubmit}>
-            <input
-              type="email"
-              name="email"
-              placeholder="Email"
-              required
-              value={formData.email}
-              onChange={handleChange}
-            />
+          <div className="auth-card">
+            <form className="input-group auth-form" onSubmit={handleSubmit}>
+              <input
+                type="email"
+                name="email"
+                placeholder="Email"
+                required
+                value={formData.email}
+                onChange={handleChange}
+              />
 
-            <input
-              type="password"
-              name="password"
-              placeholder="Password"
-              required
-              value={formData.password}
-              onChange={handleChange}
-            />
+              <input
+                type="password"
+                name="password"
+                placeholder="Password"
+                required
+                value={formData.password}
+                onChange={handleChange}
+              />
 
-            {error && <p style={{ color: "red" }}>{error}</p>}
+              {error && (
+                <p className="account-message account-message--error" role="alert">
+                  {error}
+                </p>
+              )}
 
-            <button type="submit" className="generate-btn" disabled={loading}>
-              {loading ? "Signing In..." : "Sign In"}
-            </button>
+              <button type="submit" className="generate-btn" disabled={loading}>
+                {loading ? "Signing in…" : "Sign in"}
+              </button>
 
-            <p>
-              Dont have an account? <a href="/signup">Sign Up</a>
-            </p>
-          </form>
+              <p className="auth-footer">
+                Don&apos;t have an account?{" "}
+                <Link to="/signup" className="auth-footer-link">
+                  Sign up
+                </Link>
+              </p>
+            </form>
+          </div>
         </div>
       </section>
     </main>

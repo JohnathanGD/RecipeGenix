@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  COOK_TIME_SELECTABLE,
+  DIETARY_STYLE_OPTIONS,
+  COOKING_GOAL_OPTIONS,
+  normalizeCookTimeStored,
+} from "../shared/userPreferences.js";
 import "./css/App.css";
 
 function joinList(value) {
@@ -7,41 +13,6 @@ function joinList(value) {
   if (Array.isArray(value)) return value.join(", ");
   return String(value);
 }
-
-const DIETARY_LABELS = {
-  "": "Not set",
-  none: "No restriction",
-  vegetarian: "Vegetarian",
-  vegan: "Vegan",
-  pescatarian: "Pescatarian",
-  keto: "Keto",
-  halal: "Halal",
-  "gluten-free": "Gluten-free",
-};
-
-const COOKING_GOAL_LABELS = {
-  "": "Not set",
-  "quick-meals": "Quick meals",
-  "high-protein": "High protein",
-  "budget-friendly": "Budget friendly",
-  healthy: "Healthy",
-  "comfort-food": "Comfort food",
-};
-
-const COOK_TIME_LABELS = {
-  "": "Not set",
-  15: "15 min",
-  30: "30 min",
-  45: "45 min",
-  60: "60 min",
-};
-
-const SPICE_LABELS = {
-  "": "Not set",
-  mild: "Mild",
-  medium: "Medium",
-  spicy: "Spicy",
-};
 
 function formatDobDisplay(iso) {
   if (!iso) return "—";
@@ -56,12 +27,6 @@ function formatDobDisplay(iso) {
   } catch {
     return iso;
   }
-}
-
-function displayCookTime(value) {
-  if (value === "" || value == null) return COOK_TIME_LABELS[""];
-  const key = Number(value);
-  return COOK_TIME_LABELS[key] ?? `${value} min`;
 }
 
 function displayText(value, fallback = "—") {
@@ -83,8 +48,9 @@ function clientUserToFormData(u) {
     dislikes: joinList(p.dislikes),
     favoriteCuisines: joinList(p.favoriteCuisines),
     cookingGoal: p.cookingGoal || "",
-    maxCookTime: p.maxCookTime != null ? String(p.maxCookTime) : "",
-    spiceLevel: p.spiceLevel || "",
+    maxCookTime: normalizeCookTimeStored(
+      p.maxCookTime != null ? String(p.maxCookTime) : ""
+    ),
     householdSize: p.householdSize ?? 1,
   };
 }
@@ -106,7 +72,6 @@ export default function Account() {
     favoriteCuisines: "",
     cookingGoal: "",
     maxCookTime: "",
-    spiceLevel: "",
     householdSize: 1,
   });
   const [editingKey, setEditingKey] = useState(null);
@@ -206,7 +171,6 @@ export default function Account() {
             favoriteCuisines: data.favoriteCuisines,
             cookingGoal: data.cookingGoal,
             maxCookTime: data.maxCookTime,
-            spiceLevel: data.spiceLevel,
             householdSize: (() => {
               const n = Number(data.householdSize);
               return Number.isFinite(n) && n >= 1 ? n : 1;
@@ -249,6 +213,16 @@ export default function Account() {
     },
     [navigate]
   );
+
+  const patchPreferences = async (partial) => {
+    const previous = { ...formData };
+    const next = { ...formData, ...partial };
+    setFormData(next);
+    const ok = await persist(next);
+    if (!ok) {
+      setFormData(previous);
+    }
+  };
 
   const openEdit = (key) => {
     setError("");
@@ -308,8 +282,8 @@ export default function Account() {
         <div className="hero-text">
           <h1>Account and preferences</h1>
           <p className="section-text">
-            Your profile is shown below. Tap any row to change that item, then
-            choose Save or Cancel.
+            Identity fields use tap-to-edit. Your cooking targets below work like a
+            fitness app — tap a chip and we save right away.
           </p>
 
           {error && (
@@ -321,8 +295,15 @@ export default function Account() {
             <p className="account-message account-message--success">{success}</p>
           )}
 
-          <div className="profile-card">
-            <h2 className="profile-card__heading">Profile</h2>
+          <div className="profile-card profile-card--prefs-fitness">
+            <div className="prefs-fitness-header">
+              <p className="prefs-fitness-kicker">Your account</p>
+              <h2 className="prefs-fitness-title">Profile & contact</h2>
+              <p className="prefs-fitness-lead">
+                Tap a row to edit that field, then Save or Cancel — same rhythm as
+                updating stats in a training app.
+              </p>
+            </div>
 
             {!isEditing("firstName") ? (
               <button
@@ -502,61 +483,89 @@ export default function Account() {
             )}
           </div>
 
-          <div className="profile-card">
-            <h2 className="profile-card__heading">Food preferences</h2>
+          <div className="profile-card profile-card--prefs-fitness">
+            <div className="prefs-fitness-header">
+              <p className="prefs-fitness-kicker">Your cooking profile</p>
+              <h2 className="prefs-fitness-title">Tastes & rhythm</h2>
+              <p className="prefs-fitness-lead">
+                Tap a chip to update your plan. Changes save immediately.
+              </p>
+            </div>
 
-            {!isEditing("dietaryStyle") ? (
-              <button
-                type="button"
-                className="profile-row"
-                onClick={() => openEdit("dietaryStyle")}
-              >
-                <span className="profile-row__label">Dietary style</span>
-                <span className="profile-row__value">
-                  {DIETARY_LABELS[formData.dietaryStyle || ""] ??
-                    displayText(formData.dietaryStyle, "Not set")}
-                </span>
-                <span className="profile-row__chev" aria-hidden>
-                  ›
-                </span>
-              </button>
-            ) : (
-              <div className="profile-row profile-row--editing">
-                <span className="profile-row__label">Dietary style</span>
-                <select
-                  className="profile-row__input"
-                  value={draftValue}
-                  onChange={handleDraftChange}
-                >
-                  <option value="">Not set</option>
-                  <option value="none">No restriction</option>
-                  <option value="vegetarian">Vegetarian</option>
-                  <option value="vegan">Vegan</option>
-                  <option value="pescatarian">Pescatarian</option>
-                  <option value="keto">Keto</option>
-                  <option value="halal">Halal</option>
-                  <option value="gluten-free">Gluten-free</option>
-                </select>
-                <div className="profile-row__actions">
+            <section className="pref-panel">
+              <h3 className="pref-panel__title">Typical cook window</h3>
+              <p className="pref-panel__hint">
+                Match recipes to the time you usually have, not a single minute
+                countdown.
+              </p>
+              <div className="pref-chip-grid pref-chip-grid--tight">
+                {COOK_TIME_SELECTABLE.map((opt) => (
                   <button
+                    key={opt.value || "none"}
                     type="button"
-                    className="profile-row__btn profile-row__btn--primary"
-                    onClick={saveEdit}
                     disabled={saving}
+                    className={`pref-chip${
+                      (formData.maxCookTime || "") === (opt.value ?? "")
+                        ? " pref-chip--active"
+                        : ""
+                    }`}
+                    onClick={() => patchPreferences({ maxCookTime: opt.value })}
                   >
-                    Save
+                    <span className="pref-chip__label">{opt.label}</span>
+                    {opt.hint ? (
+                      <span className="pref-chip__hint">{opt.hint}</span>
+                    ) : null}
                   </button>
-                  <button
-                    type="button"
-                    className="profile-row__btn"
-                    onClick={cancelEdit}
-                    disabled={saving}
-                  >
-                    Cancel
-                  </button>
-                </div>
+                ))}
               </div>
-            )}
+            </section>
+
+            <section className="pref-panel">
+              <h3 className="pref-panel__title">Eating style</h3>
+              <p className="pref-panel__hint">What should recipes respect first?</p>
+              <div className="pref-chip-grid">
+                {DIETARY_STYLE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value || "unset"}
+                    type="button"
+                    disabled={saving}
+                    className={`pref-chip pref-chip--compact${
+                      formData.dietaryStyle === opt.value
+                        ? " pref-chip--active"
+                        : ""
+                    }`}
+                    onClick={() => patchPreferences({ dietaryStyle: opt.value })}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="pref-panel">
+              <h3 className="pref-panel__title">Kitchen focus</h3>
+              <p className="pref-panel__hint">What a good week of meals looks like for you.</p>
+              <div className="pref-chip-grid">
+                {COOKING_GOAL_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value || "unset-goal"}
+                    type="button"
+                    disabled={saving}
+                    className={`pref-chip pref-chip--compact${
+                      formData.cookingGoal === opt.value ? " pref-chip--active" : ""
+                    }`}
+                    onClick={() => patchPreferences({ cookingGoal: opt.value })}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <h3 className="pref-panel__title pref-panel__title--details">Lists & household</h3>
+            <p className="pref-panel__hint pref-panel__hint--details">
+              Tap a row to edit — same as your profile above.
+            </p>
 
             {!isEditing("allergies") ? (
               <button
@@ -672,155 +681,6 @@ export default function Account() {
                   onChange={handleDraftChange}
                   autoFocus
                 />
-                <div className="profile-row__actions">
-                  <button
-                    type="button"
-                    className="profile-row__btn profile-row__btn--primary"
-                    onClick={saveEdit}
-                    disabled={saving}
-                  >
-                    Save
-                  </button>
-                  <button
-                    type="button"
-                    className="profile-row__btn"
-                    onClick={cancelEdit}
-                    disabled={saving}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {!isEditing("cookingGoal") ? (
-              <button
-                type="button"
-                className="profile-row"
-                onClick={() => openEdit("cookingGoal")}
-              >
-                <span className="profile-row__label">Cooking goal</span>
-                <span className="profile-row__value">
-                  {COOKING_GOAL_LABELS[formData.cookingGoal || ""] ??
-                    displayText(formData.cookingGoal, "Not set")}
-                </span>
-                <span className="profile-row__chev" aria-hidden>
-                  ›
-                </span>
-              </button>
-            ) : (
-              <div className="profile-row profile-row--editing">
-                <span className="profile-row__label">Cooking goal</span>
-                <select
-                  className="profile-row__input"
-                  value={draftValue}
-                  onChange={handleDraftChange}
-                >
-                  <option value="">Not set</option>
-                  <option value="quick-meals">Quick meals</option>
-                  <option value="high-protein">High protein</option>
-                  <option value="budget-friendly">Budget friendly</option>
-                  <option value="healthy">Healthy</option>
-                  <option value="comfort-food">Comfort food</option>
-                </select>
-                <div className="profile-row__actions">
-                  <button
-                    type="button"
-                    className="profile-row__btn profile-row__btn--primary"
-                    onClick={saveEdit}
-                    disabled={saving}
-                  >
-                    Save
-                  </button>
-                  <button
-                    type="button"
-                    className="profile-row__btn"
-                    onClick={cancelEdit}
-                    disabled={saving}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {!isEditing("maxCookTime") ? (
-              <button
-                type="button"
-                className="profile-row"
-                onClick={() => openEdit("maxCookTime")}
-              >
-                <span className="profile-row__label">Max cook time</span>
-                <span className="profile-row__value">
-                  {displayCookTime(formData.maxCookTime)}
-                </span>
-                <span className="profile-row__chev" aria-hidden>
-                  ›
-                </span>
-              </button>
-            ) : (
-              <div className="profile-row profile-row--editing">
-                <span className="profile-row__label">Max cook time</span>
-                <select
-                  className="profile-row__input"
-                  value={draftValue}
-                  onChange={handleDraftChange}
-                >
-                  <option value="">Not set</option>
-                  <option value="15">15 min</option>
-                  <option value="30">30 min</option>
-                  <option value="45">45 min</option>
-                  <option value="60">60 min</option>
-                </select>
-                <div className="profile-row__actions">
-                  <button
-                    type="button"
-                    className="profile-row__btn profile-row__btn--primary"
-                    onClick={saveEdit}
-                    disabled={saving}
-                  >
-                    Save
-                  </button>
-                  <button
-                    type="button"
-                    className="profile-row__btn"
-                    onClick={cancelEdit}
-                    disabled={saving}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {!isEditing("spiceLevel") ? (
-              <button
-                type="button"
-                className="profile-row"
-                onClick={() => openEdit("spiceLevel")}
-              >
-                <span className="profile-row__label">Spice preference</span>
-                <span className="profile-row__value">
-                  {SPICE_LABELS[formData.spiceLevel || ""] ??
-                    displayText(formData.spiceLevel, "Not set")}
-                </span>
-                <span className="profile-row__chev" aria-hidden>
-                  ›
-                </span>
-              </button>
-            ) : (
-              <div className="profile-row profile-row--editing">
-                <span className="profile-row__label">Spice preference</span>
-                <select
-                  className="profile-row__input"
-                  value={draftValue}
-                  onChange={handleDraftChange}
-                >
-                  <option value="">Not set</option>
-                  <option value="mild">Mild</option>
-                  <option value="medium">Medium</option>
-                  <option value="spicy">Spicy</option>
-                </select>
                 <div className="profile-row__actions">
                   <button
                     type="button"
