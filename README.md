@@ -1,171 +1,124 @@
-# RecipeGenix 🍽️
+# RecipeGenix
 
-RecipeGenix is an AI-powered recipe generation platform that creates personalized recipes based on user-provided ingredients, preferences, and cuisine selection. The application integrates Google Gemini for intelligent generation and TheMealDB for contextual inspiration, forming a retrieval-augmented generation (RAG) pipeline.
+RecipeGenix is an AI-powered recipe assistant with grocery list support, user preferences, and agent-assisted recipe generation.
 
----
+## Application Overview
 
-## 🚀 Features
+RecipeGenix helps users turn available ingredients into practical recipes with AI support.
 
-- Generate up to 10 unique recipes from user inputs
-- Upload grocery lists (image, PDF, or text) → auto-extract ingredients using Gemini
-- Culture-based recipe generation (e.g., Italian, Mexican, Japanese)
-- Retrieval-Augmented Generation (MealDB + Gemini)
-- Interactive recipe carousel (navigate like Instagram posts)
-- Expandable recipe details (show more / show less)
-- Clean, responsive UI built with React + Vite
+Main flow:
+1. User signs up/logs in and sets preferences (dietary style, cook-time window, goals).
+2. User enters ingredients manually or pulls from saved grocery lists.
+3. User can request clarification questions before generation.
+4. AI generates multiple recipe options and evaluates them.
+5. User can revise, save, and later leave feedback on saved recipes.
 
----
+Core capabilities:
+- Grocery list creation and management
+- File-assisted ingredient extraction (`.pdf` / `.txt`)
+- Multi-step AI recipe generation (clarify -> generate -> review/revise)
+- Saved recipes with detail pages and feedback
 
-## 🧠 How It Works
+## Agentic Workflow (Revision Loop)
 
-The system follows a hybrid AI pipeline:
+RecipeGenix is not just a single-shot prompt. It uses an agentic, multi-step loop:
 
-User Input (ingredients / file upload)
-        ↓
-Gemini (ingredient extraction)
-        ↓
-MealDB (recipe inspiration retrieval)
-        ↓
-Gemini (final recipe generation)
-        ↓
-Frontend display (carousel UI)
+1. **Clarification Step (Optional)**
+   - Before generation, the agent can ask short clarifying questions.
+   - User answers are passed into the generation context.
 
-This architecture improves realism, diversity, and contextual relevance of generated recipes.
+2. **Planning + Generation**
+   - A planning pass identifies constraints (diet, time, dislikes, goals).
+   - A generation pass produces multiple recipe drafts.
 
----
+3. **Critic/Evaluation Pass**
+   - Recipes are scored and reviewed against constraints.
+   - The app can auto-revise weak drafts (for example, low-score outputs).
 
-## 🛠️ Tech Stack
+4. **Revision Loop (Human-in-the-loop)**
+   - User can request targeted revisions (e.g., cheaper, faster, vegetarian).
+   - The revision agent updates the recipe while preserving compatible parts.
+   - User approves/rejects pending revisions, keeping final control.
 
-### Frontend
-- React (Vite)
-- CSS (custom styling)
-- Fetch API
+5. **Saved Feedback Loop**
+   - After trying saved recipes, users add thumbs/notes.
+   - That feedback is summarized and injected into future generation context.
 
-### Backend
-- Node.js + Express
-- Google Gemini API (@google/genai)
-- Multer (file uploads)
+This loop demonstrates agentic behavior through iterative planning, critique, revision, and user-guided adaptation.
 
-### APIs
-- Google Gemini (AI generation + file understanding)
-- TheMealDB (recipe inspiration / cultural context)
+## Run Instructions
 
----
+### Requirements and Downloads
 
-## 📦 Installation
-
-### 1. Clone the repository
+#### 1) Install Git (to clone the repository)
+- Download: [https://git-scm.com/downloads](https://git-scm.com/downloads)
+- Verify:
 ```bash
-git clone https://github.com/yourusername/RecipeGenix.git
-cd RecipeGenix
+git --version
 ```
 
-### 2. Install dependencies
-
-#### Frontend
+#### 2) Install Node.js and npm
+- Download Node.js LTS: [https://nodejs.org](https://nodejs.org)
+- npm is included with Node.js
+- Verify:
 ```bash
-cd client
+node -v
+npm -v
+```
+- Recommended: Node.js 18+ (LTS)
+
+#### 3) Get a Gemini API key
+- Google AI Studio: [https://aistudio.google.com/](https://aistudio.google.com/)
+- Create an API key and place it in `server/.env` as `GEMINI_API_KEY`
+
+### 1) Clone repository
+```bash
+git clone https://github.com/JohnathanGD/RecipeGenix.git
+cd ai-recipe-maker
+```
+
+### 2) Install dependencies
+Install frontend dependencies from project root:
+```bash
 npm install
-npm run dev
 ```
 
-#### Backend
+Install backend dependencies:
 ```bash
 cd server
 npm install
-node index.js
+cd ..
 ```
 
----
-
-## 🔑 Environment Variables
-
-Create a `.env` file in `/server`:
-
+### 3) Configure environment variables
+Create `server/.env` with:
 ```env
 GEMINI_API_KEY=your_api_key_here
+JWT_SECRET=your_jwt_secret_here
 PORT=5050
 ```
 
-⚠️ Do NOT commit your API key.
+### 4) Start backend
+In one terminal:
+```bash
+cd server
+node index.js
+```
+Backend runs on `http://localhost:5050`.
 
----
+### 5) Start frontend
+In a second terminal (from project root):
+```bash
+npm run dev
+```
+Frontend runs on Vite default (`http://localhost:5173`).
 
-## 📡 API Endpoints
+### 6) Use the app
+1. Sign up or log in
+2. Open Dashboard
+3. Add grocery lists and/or ingredients
+4. Generate and save recipes
 
-### AI Generation
-POST /generate-hybrid
-
-### Ingredient Extraction
-POST /extract-ingredients
-
-### MealDB Integration
-GET /mealdb/areas
-GET /mealdb/by-area
-GET /mealdb/by-ingredient
-GET /mealdb/lookup
-
----
-
-## 📂 Project Structure
-
-RecipeGenix/
-├── client/        # React frontend
-│   ├── src/
-│   └── App.jsx
-│
-├── server/        # Express backend
-│   ├── index.js
-│   └── .env
-│
-└── README.md
-
----
-
-## 🎯 Key Highlights
-
-- Implements a real-world **RAG (Retrieval-Augmented Generation)** system
-- Combines structured AI output with external data sources
-- Uses multimodal AI (file upload → ingredient extraction)
-- Focuses on usability with an intuitive UI/UX
-
----
-
-## 🔮 Future Improvements
-
-- Drag-and-drop file uploads
-- Nutrition analysis integration
-- Save/favorite recipes
-- User accounts
-- Mobile swipe gestures for recipe navigation
-- AI meal planning (weekly plans)
-
----
-
-## 🧪 Example Use Case
-
-1. Upload a grocery list image
-2. Ingredients auto-fill
-3. Select "Italian" cuisine
-4. Generate recipes
-5. Browse through results using carousel navigation
-
----
-
-## 📸 Demo (Optional)
-
-_Add screenshots or a demo video here_
-
----
-
-## 👨‍💻 Author
-
-Johnathan Gutierrez-Diaz  
-Florida State University  
-Computer Science + Biology + Finance  
-
----
-
-## 📄 License
-
-MIT License
+## Notes
+- Do not commit your `.env` or API keys.
+- If backend route changes were made, restart the backend server.
