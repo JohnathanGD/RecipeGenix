@@ -52,7 +52,7 @@ To evaluate the proposed project, we assess both functionality and quality of ag
 
 ### Evaluation Protocol
 
-1. Create a small benchmark set of 8-12 scenarios covering:
+1. Create a benchmark set of scenarios covering (this submission reports 4 scenarios):
    - dietary constraints
    - allergy restrictions
    - cook-time preferences
