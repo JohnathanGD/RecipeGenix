@@ -46,6 +46,26 @@ RecipeGenix is not just a single-shot prompt. It uses an agentic, multi-step loo
 
 This loop demonstrates agentic behavior through iterative planning, critique, revision, and user-guided adaptation.
 
+## Repository Structure
+
+```text
+ai-recipe-maker/
+├── public/                 # Static frontend assets
+├── server/                 # Express API, routes, middleware, SQLite DB
+├── shared/                 # Shared helpers/constants used by frontend + backend
+├── src/                    # React frontend source code
+├── README.md               # Project documentation and run instructions
+├── index.html              # Vite HTML entry
+├── package.json            # Frontend scripts and dependencies
+├── package-lock.json       # Locked frontend dependency versions
+├── vite.config.js          # Vite configuration
+└── eslint.config.js        # Lint configuration
+```
+
+Notes:
+- `node_modules/` is generated after `npm install` and is not source code.
+- `dist/` is generated when you run a production build (`npm run build`).
+
 ## Run Instructions
 
 ### Requirements and Downloads
