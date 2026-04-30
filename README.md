@@ -46,6 +46,117 @@ RecipeGenix is not just a single-shot prompt. It uses an agentic, multi-step loo
 
 This loop demonstrates agentic behavior through iterative planning, critique, revision, and user-guided adaptation.
 
+## Evaluation Plan
+
+To evaluate the proposed project, we assess both functionality and quality of agent behavior.
+
+### Evaluation Protocol
+
+1. Create a benchmark set of scenarios covering (this submission reports 4 scenarios):
+   - dietary constraints
+   - allergy restrictions
+   - cook-time preferences
+   - budget and goal-driven requests
+2. Run each scenario through:
+   - baseline mode (single-pass generation style)
+   - agentic mode (clarify + critic + revision loop)
+3. Compare outcomes across the same scenarios.
+
+### Metrics
+
+- **Constraint Satisfaction (%):** recipe meets stated diet/allergy/time constraints
+- **Average Agent Score:** mean critic score across generated recipes
+- **Revision Rate:** percent of recipes requiring manual revision requests
+- **User Acceptance Proxy:** saved-recipe rate and/or thumbs-up feedback rate
+
+### Baseline vs Agentic Comparison
+
+The key comparison is whether multi-step agentic flow improves:
+- constraint adherence
+- practical usefulness
+- fewer manual corrections
+
+### Evaluation Results (Observed Test Cases)
+
+| Scenario | Sampled Recipe Scores | Constraint Fit (Sampled) | Revisions Needed (Sampled) | Key Notes |
+|---|---|---|---|---|
+| High-protein, 30 mins, no nuts | 9/10, 9/10 | Strong fit (protein, no nuts, <=30 mins) | None | Outputs were practical and matched constraints directly. |
+| Vegetarian, budget-friendly, family of 4 | 9/10, 9/10 | Strong fit (vegetarian, budget-oriented, serves 4) | None | Used staple ingredients and realistic preparation steps. |
+| Gluten-free, quick meal | 9/10, 9/10 | Strong fit (gluten-free, quick prep) | None | One recipe was no-cook and one fast-cook, both practical for single serving. |
+| Hard-constraint run: high-protein, under 15 mins, gluten-free, budget-friendly | 8/10, 9/10 | Mixed-to-strong fit | None in sampled outputs | Lower-scored recipe required assumptions (pre-cooked quinoa, gluten-free sauce) to fully satisfy constraints. |
+
+### Findings
+
+- For the first three benchmark scenarios, sampled outputs showed consistently high scores and strong alignment to stated constraints.
+- The harder constraint run produced one strong output and one weaker output, which indicates the model handles strict multi-constraint requests but may rely on assumptions.
+- Overall, results suggest the agentic pipeline is robust for common use cases and degrades gracefully under tighter constraints.
+
+### Failure Analysis (Observed)
+
+1. **Assumption sensitivity under strict constraints**
+   - In the hard-constraint run, one recipe depended on pre-cooked quinoa and a generic sauce interpreted as gluten-free.
+   - This introduces a practical risk: constraints can appear satisfied only if hidden assumptions hold.
+
+2. **Constraint confidence vs explicit validation**
+   - Some outputs mark dietary/preference fit as excellent while still containing caveats in tradeoffs.
+   - This indicates that explicit ingredient-level validation (e.g., enforcing gluten-free labels for ambiguous ingredients) could further improve reliability.
+
+### Test Input List Used Across Cases
+
+The following grocery list was used as the ingredient pool for the evaluation cases:
+
+- Apples
+- Asian noodles
+- Avocado
+- Broccoli
+- Brussels sprouts
+- Cabbage
+- Carrots
+- canned tuna
+- Cheese
+- Chickpeas
+- Cilantro dressing
+- Cottage cheese
+- couscous
+- Creamer
+- Cucumber
+- Dill
+- Dumplings
+- Edamame
+- eggs
+- Espresso
+- falafel
+- Feta
+- fish
+- frozen fruit
+- Ginger
+- Greek yogurt
+- Green onion
+- ground chicken
+- Lemon
+- Mayo
+- Mushrooms
+- Mustard
+- Peanut butter
+- Peanut sauce
+- Pickles
+- Pita
+- Potatoes
+- Quinoa
+- Red onion
+- Rice cakes
+- Rice crackers
+- rice
+- Sauce
+- sausage
+- Shredded beef
+- Soy sauce
+- Sriracha
+- thick noodles
+- Tomatoes
+- tuna salad
+- Yogurt
+
 ## Repository Structure
 
 ```text
